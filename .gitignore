@@ -1,0 +1,7 @@
+# The Cute Fantasy art pack must never be uploaded (its licence forbids redistributing the files).
+assets/*
+!assets/PUT_THE_PACK_HERE.txt
+# editor / system junk
+.DS_Store
+Thumbs.db
+__pycache__/

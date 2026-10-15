@@ -1,0 +1,3 @@
+Put the Cute Fantasy pack folders in here (Animals, Buildings, Crops, Icons, Outdoor decoration, Player, Tiles, Trees, Weather effects ...).
+They stay on your computer only: .gitignore stops git from uploading them, because the pack's licence doesn't allow sharing the files.
+You only need them to rebuild index.html after changing the code (run: python build.py).
