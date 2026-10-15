@@ -386,6 +386,25 @@ class Game {
     for (const o of this.things) if (DEF[o.id].feeder === kind && o.amount > 0) { const d = dist(a.x, a.y, o.x + 1, o.y + 0.5); if (d < bd) { bd = d; best = o; } }
     return best;
   }
+  // little reminders: who's hungry or thirsty, crops that need water, things to collect
+  needs() {
+    const out = [], owned = this.animals.filter((a) => !a.wild && !a.adopted), W = this.world;
+    const names = (list) => { const n = list.map((a) => a.name); return n.length <= 2 ? n.join(' and ') : `${n.slice(0, 2).join(', ')} and ${n.length - 2} more`; };
+    for (const [kind, key, icon, need, fill, fixWord] of [['feeder', 'hunger', '🌾', 'hungry', 'Refill the hay feeder', 'a hay feeder'], ['trough', 'thirst', '💧', 'thirsty', 'Fill the water trough', 'a water trough']]) {
+      if (kind === 'trough' && this.weather.rain > 0.3) continue;
+      const list = owned.filter((a) => a[key] > 0.55); if (!list.length) continue;
+      // the feeder nearest the hungry animals' home
+      const ref = this.homeOf(list[0]) || list[0], rx = ref.door ? ref.door[0] : ref.x, ry = ref.door ? ref.door[1] : ref.y;
+      let f = null, bd = 1e9; for (const o of this.things) if (DEF[o.id].feeder === kind) { const d = dist(o.x, o.y, rx, ry); if (d < bd) { bd = d; f = o; } }
+      const verb = list.length > 1 ? 'are' : 'is';
+      if (!f || bd > 16) out.push({ key: kind + 'none', icon, text: `${names(list)} ${verb} ${need}. Put ${fixWord} near their home (Farm tab).` });
+      else if (f.amount < DEF[f.id].cap * 0.5) out.push({ key: kind, icon, text: `${names(list)} ${verb} ${need}. ${fill}!`, thing: f });
+    }
+    if (this.weather.rain < 0.3 && this.time > 10 * 60) { let n = 0, first = null; for (const [i, c] of this.crops) if (!W.wet[i] && c.g < CROP[c.c].days) { n++; first = first ?? i; } if (n) out.push({ key: 'water', icon: '🌱', text: `${n} crop${n > 1 ? 's need' : ' needs'} watering today.`, soil: [first % W.W, (first / W.W) | 0] }); }
+    const nest = this.things.find((o) => o.id === 'nest' && o.eggs && o.eggs.length >= 2); if (nest) out.push({ key: 'eggs', icon: '🥚', text: `${nest.eggs.length} eggs waiting in the nest.`, thing: nest });
+    const hive = this.things.find((o) => o.id === 'beehive' && o.honey); if (hive) out.push({ key: 'honey', icon: '🍯', text: 'Honey is ready in your beehive!', thing: hive });
+    return out.slice(0, 3);
+  }
   standBy(o, a) {
     const W = this.world, spots = [];
     for (let x = o.x - 1; x <= o.x + o.w; x++) for (const y of [o.y - 1, o.y + o.h]) spots.push([x, y]);

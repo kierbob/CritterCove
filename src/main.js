@@ -8,6 +8,8 @@
   const input = { left: false, right: false, up: false, down: false };
   const app = {
     select(a) { sel = a; ui.card(a); },
+    use(o) { const D = DEF[o.id], tx = o.door ? o.door[0] : o.x + Math.floor(o.w / 2), ty = o.door ? o.door[1] : o.y + o.h; walkTo(tx + 0.5, ty + 0.5, D.door ? 0.5 : 1.6, () => game.useThing(o), o); },
+    walk(x, y) { walkTo(x, y, 1.2, null); },
   };
   window.__rr = { get game() { return game; }, R, app, get sel() { return sel; }, get tut() { return tut; } };
 
@@ -242,7 +244,7 @@
     else if (game.inside) roomCam(false);
     else if (!(build && build.on)) { R.cam.x += (tgt.x - R.cam.x) * Math.min(1, dt * 5); R.cam.y += (tgt.y - 0.5 - R.cam.y) * Math.min(1, dt * 5); }
     draw(dt);
-    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { const ns = nearSoil(); if (ns !== ui.nearSoil) { ui.nearSoil = ns; ui.seedBar(); } ui.hud(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
+    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { const ns = nearSoil(); if (ns !== ui.nearSoil) { ui.nearSoil = ns; ui.seedBar(); } ui.hud(); if (Math.floor(time) !== Math.floor(time - dt)) ui.needs(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
     requestAnimationFrame(frame);
   }
 

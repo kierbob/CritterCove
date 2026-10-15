@@ -130,6 +130,20 @@ function installUI(game, app) {
     if (q.dataset.q === 'show') { ui.questArrow = !ui.questArrow; ui.quest(); }
     else ui.openQuests();
   });
+  // reminders in the bottom-left corner (they sit above an open animal card)
+  ui.needs = () => {
+    const box = $('#needs'), list = game.started && !game.inside ? game.needs() : [], card = $('#card');
+    box.style.bottom = card.classList.contains('hidden') ? '' : `${card.offsetHeight + 24}px`;
+    const key = list.map((n) => n.key + n.text).join('|'); if (box.dataset.k === key) return; box.dataset.k = key;
+    const old = new Set([...box.children].map((c) => c.dataset.key));
+    box.innerHTML = '';
+    for (const n of list) {
+      const d = el('div', 'need panel', `<span class="ic">${n.icon}</span><span>${n.text}</span>`); d.dataset.key = n.key;
+      if (old.has(n.key)) d.style.animation = 'none'; else if (n.key !== 'water') game.sfx('pop');
+      d.onclick = () => { if (n.thing) app.use(n.thing); else if (n.soil) app.walk(n.soil[0] + 0.5, n.soil[1] + 0.5); };
+      box.appendChild(d);
+    }
+  };
   ui.openQuests = () => {
     const body = $('#qBody'); body.innerHTML = '';
     GOALS.forEach((G, i) => {

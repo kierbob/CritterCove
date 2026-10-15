@@ -49,6 +49,12 @@ button { font: inherit; color: inherit; }
 .set { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; text-align: left; background: #fffaf0; border: 2px solid #e2cfae; border-radius: 10px; padding: 6px 10px; }
 .set input[type=range] { accent-color: var(--pink); width: 100%; }
 .set input[type=checkbox] { accent-color: var(--green); width: 20px; height: 20px; justify-self: start; }
+#needs { position: fixed; left: calc(10px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; gap: 6px; z-index: 5; width: min(290px, calc(100vw - 20px)); }
+#needs .need { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: center; padding: 6px 10px; font-size: 13px; line-height: 1.25; cursor: var(--cur-hand); animation: needIn .35s cubic-bezier(.2, 1.4, .4, 1); }
+#needs .need .ic { font-size: 18px; text-align: center; }
+#needs .need:hover { background: #fff; }
+@keyframes needIn { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+body.building #needs { display: none; }
 #qDone { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 9; padding: 10px 22px; text-align: center; pointer-events: none; display: grid; gap: 2px; min-width: 300px; }
 #qDone .big { font-size: 24px; color: var(--pink); }
 #qDone .nx { color: var(--ink2); font-size: 13px; }
@@ -218,6 +224,7 @@ body.building #hint, body.building #card { display: none !important; }
   #tools .btn { min-width: 0; flex: 1 1 0; padding: 4px 2px; font-size: 10px; }
   #tools canvas { width: 24px; height: 24px; }
   #hud .goal { width: auto; }
+  #needs { bottom: calc(84px + env(safe-area-inset-bottom)); }
   #hint { display: none; }
   #card { bottom: calc(80px + env(safe-area-inset-bottom)); width: calc(100vw - 20px); }
   .creator { grid-template-columns: 1fr; justify-items: center; }
@@ -257,6 +264,7 @@ body.building #hint, body.building #card { display: none !important; }
 
 <div id="shop" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px">Market stall</h2><div class="tabs" id="shopTabs"></div><div class="scroll" id="shopBody"></div><div class="foot" id="shopFoot"></div></div></div>
 <div id="qDone" class="panel hidden"></div>
+<div id="needs"></div>
 <div id="pause" class="modal hidden"><div class="sheet panel">
   <div id="pMain" class="pview"><h2 class="px">Paused</h2><div class="tag" id="pTag"></div>
     <button class="btn go px big" id="pResume">Resume</button><button class="btn px big" id="pSettings">Settings</button><button class="btn px big" id="pQuit">Save &amp; main menu</button></div>
