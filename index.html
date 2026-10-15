@@ -1815,15 +1815,15 @@ const GOALS = [
   { text: 'Earn 200 coins from selling', reward: 25, prog: (g) => [g.stats.earned || 0, 200], target: qThing('stall'),
     how: 'Gather flowers, eggs, fish or wood, then sell them at the market stall.' },
   { text: 'Plant 6 seeds in your field', reward: 15, prog: (g) => [g.stats.planted || 0, 6], target: qSoil((g, i) => !g.crops.has(i)),
-    how: 'Click the brown soil to plant. More seeds are in the Seeds tab at the market.' },
-  { text: 'Harvest 5 crops', reward: 25, prog: (g) => [g.stats.harvested || 0, 5], target: qSoil((g, i) => g.crops.has(i)),
-    how: 'Water your seedlings every day. When a crop sparkles, click it to harvest.' },
+    how: 'Click the brown soil to plant, then click the seeds to water them. Wheat and radishes grow in 2 days.' },
   { text: 'Catch 5 fish', reward: 20, prog: (g) => [g.stats.fish, 5], target: (g) => { let b = null, bd = 1e9; for (const s of g.fishSpots) { const d = dist(s.x, s.y, g.player.x, g.player.y); if (d < bd) { bd = d; b = s; } } return b && { x: b.x + 0.5, y: b.y - 0.2 }; },
     how: 'Click the water to cast your line, then click again as soon as you see "!".' },
   { text: 'Make friends with a wild frog', reward: 20, prog: (g) => [(g.dex.frog || []).length, 1], target: qWild('frog'),
     how: 'Frogs sit beside ponds. Walk up and click one to give it a pat.' },
   { text: 'Buy a duck', reward: 20, prog: (g) => [g.animals.some((a) => a.sk === 'duck') ? 1 : 0, 1], target: qThing('stall'),
     how: 'Ducks are in the Animals tab at the market stall. They live in your coop.' },
+  { text: 'Harvest 5 crops', reward: 25, prog: (g) => [g.stats.harvested || 0, 5], target: qSoil((g, i) => g.crops.has(i)),
+    how: 'Water your seedlings every day. When a crop sparkles, click it to harvest.' },
   { text: 'Dig a pond of 6 tiles', reward: 30, prog: (g) => [g.stats.ponds || 0, 6],
     how: 'Press B, open "Buy more", get Pond water from the Decor tab, then drag across the grass.' },
   { text: 'Adopt a wild critter', reward: 40, prog: (g) => [g.stats.adopted || 0, 1], target: qWild('frog'),
@@ -1877,7 +1877,7 @@ const CATS = [['animals', 'Animals'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['de
 // ---------------------------------------------------------------- game
 class Game {
   constructor(opts) {
-    this.DAY_SEC = 18 * 60;                  // one in-game hour per real minute: a day (6:00 to midnight) lasts 18 minutes
+    this.DAY_SEC = 300;                      // a day (6:00 to midnight) lasts 5 real minutes
     this.seed = opts.seed || (Math.random() * 1e9) | 0;
     this.world = new World(this.seed);
     this.things = [];                        // placed buildings + decor
