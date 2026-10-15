@@ -3,11 +3,11 @@ const WATER = 0, SAND = 1, GRASS = 2;
 // ore rows in Ores.png: 1 copper, 2 gold, 3 emerald, 4 sapphire, 5 amber, 6 ruby, 7 amethyst
 const ORES = [null, 'copper', 'gold', 'emerald', 'sapphire', 'amber', 'ruby', 'amethyst'];
 function oreType(r) { return r < 0.42 ? 1 : r < 0.62 ? 2 : r < 0.72 ? 5 : r < 0.81 ? 3 : r < 0.89 ? 4 : r < 0.95 ? 7 : 6; }
-const MAP_W = 96, MAP_H = 72;
+const MAP_W = 150, MAP_H = 112;         // new islands; farms saved before the island grew keep 96 x 72
 
 class World {
-  constructor(seed) {
-    this.seed = seed; this.W = MAP_W; this.H = MAP_H;
+  constructor(seed, size) {
+    this.seed = seed; this.W = size ? size[0] : MAP_W; this.H = size ? size[1] : MAP_H; this.s = this.W / 96;
     const n = this.W * this.H;
     this.ter = new Uint8Array(n);        // WATER / SAND / GRASS
     this.pond = new Uint8Array(n);
@@ -49,19 +49,23 @@ class World {
     this.farm = { x: Math.round(cx - 6), y: Math.round(cy - 2) };
     this.makePond(this.farm.x + 22 + Math.round(r() * 4), this.farm.y + 4 + Math.round(r() * 6), 5 + r() * 2, r);
     this.makePond(this.farm.x - 24 - Math.round(r() * 4), this.farm.y + 12 + Math.round(r() * 4), 3.5 + r(), r);
+    if (this.s > 1.2) {   // a bigger island gets a couple more ponds out in the wild
+      this.makePond(this.farm.x + 8 + Math.round(r() * 10), this.farm.y - 26 - Math.round(r() * 4), 4 + r() * 2, r);
+      this.makePond(this.farm.x + 34 + Math.round(r() * 6), this.farm.y + 28 + Math.round(r() * 4), 4.5 + r() * 2, r);
+    }
     this.cleanup();
     // scenery: forests where the noise says so, clear around the farm
     const F = makeNoise(this.seed + 99);
     for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
       const i = this.idx(x, y); if (this.ter[i] !== GRASS) continue;
       const fd = dist(x, y, this.farm.x, this.farm.y);
-      const forest = F(x / 11, y / 11, 3) + 0.08 - (fd < 16 ? 1 : fd < 22 ? (22 - fd) / 10 : 0);
+      const forest = F(x / 11, y / 11, 3) + 0.08 - (fd < 16 * this.s ? 1 : fd < 22 * this.s ? (22 * this.s - fd) / 10 : 0);
       if (!this.nearType(x, y, 1, (q) => q !== GRASS)) {
         if (forest > 0.0 && r() < 0.6) this.addTree(x, y, r);
         else if (forest > -0.12 && r() < 0.08) this.addTree(x, y, r);
       }
     }
-    for (let k = 0; k < 1500; k++) {
+    for (let k = 0; k < 1500 * (W * H) / (96 * 72); k++) {
       const x = 1 + Math.floor(r() * (W - 2)), y = 1 + Math.floor(r() * (H - 2)), i = this.idx(x, y);
       if (this.objAt.has(i) || this.ter[i] === WATER) continue;
       const fd = dist(x, y, this.farm.x, this.farm.y);

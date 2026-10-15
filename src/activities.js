@@ -139,7 +139,7 @@ Object.assign(Game.prototype, {
       for (let k = 0, made = 0; k < n * 25 && made < n; k++) {
         const x = 1 + Math.floor(r() * (W.W - 2)), y = 1 + Math.floor(r() * (W.H - 2)), i = W.idx(x, y);
         if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, this.player.x, this.player.y) < 5) continue;
-        if (dist(x, y, W.farm.x, W.farm.y) < 15 || this.things.some((o) => dist(o.x, o.y, x, y) < 5)) continue;
+        if (dist(x, y, W.farm.x, W.farm.y) < 15 * W.s || this.things.some((o) => dist(o.x, o.y, x, y) < 5)) continue;
         W.addObj(Object.assign({ kind, x, y }, make())); if (kind === 'rock' || kind === 'ore') W.block[i] = 1; made++;
       }
     };
@@ -151,7 +151,7 @@ Object.assign(Game.prototype, {
     // a few new saplings appear in the woods when trees have been dug out
     for (let k = 0, made = 0, n = want('tree', 3); k < 200 && made < n; k++) {
       const x = 1 + Math.floor(r() * (W.W - 2)), y = 1 + Math.floor(r() * (W.H - 2)), i = W.idx(x, y);
-      if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, W.farm.x, W.farm.y) < 15) continue;
+      if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, W.farm.x, W.farm.y) < 15 * W.s) continue;
       if (!W.nearType(x, y, 2, () => false) && !W.objs.some((o) => o.kind === 'tree' && Math.abs(o.x - x) <= 3 && Math.abs(o.y - y) <= 3)) continue;   // next to other trees
       const t = W.addTree(x, y, r); t.size = 'Small'; t.nextGrow = this.now() + 1440 * 0.7; made++;
     }

@@ -156,7 +156,7 @@ Object.assign(Game.prototype, {
       h.wait -= dt; if (h.wait > 0) continue;
       const job = this.planHelper(h);
       if (job) {
-        const p = findPath(W, Math.floor(h.x), Math.floor(h.y), job.tx, job.ty, 9000, job.near || 1, (a, b) => W.walkP(a, b));
+        const p = findPath(W, Math.floor(h.x), Math.floor(h.y), job.tx, job.ty, 20000, job.near || 1, (a, b) => W.walkP(a, b));
         if (p) { h.path = p.length ? p : null; h.task = job; h.status = job.status; continue; }
       }
       // nothing to do: potter about near home

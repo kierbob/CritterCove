@@ -216,7 +216,7 @@
     const P0 = game.player, W = game.inside || game.world;
     if (dist(P0.x, P0.y, x, y) <= Math.max(reach, 0.6) + 0.4 && cb) { P0.path = null; P0.face(x - P0.x, y - P0.y); cb(); return; }
     let tx = Math.floor(x), ty = Math.floor(y);
-    let p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 6000, reach > 2 ? 2 : reach > 0.7 ? 1 : thing ? 1 : 0, (a, b) => W.walkP(a, b));
+    let p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 20000, reach > 2 ? 2 : reach > 0.7 ? 1 : thing ? 1 : 0, (a, b) => W.walkP(a, b));
     if (!p && reach > 2) p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 6000, 3, (a, b) => W.walkP(a, b));
     if (p) { P0.path = p; P0.onArrive = cb ? () => { P0.face(x - P0.x, y - P0.y); cb(); } : null; if (!p.length && cb) { P0.onArrive = null; cb(); } }
     else game.toast('You can\'t get there from here.', 'bad');

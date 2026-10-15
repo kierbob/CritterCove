@@ -1136,11 +1136,11 @@ const WATER = 0, SAND = 1, GRASS = 2;
 // ore rows in Ores.png: 1 copper, 2 gold, 3 emerald, 4 sapphire, 5 amber, 6 ruby, 7 amethyst
 const ORES = [null, 'copper', 'gold', 'emerald', 'sapphire', 'amber', 'ruby', 'amethyst'];
 function oreType(r) { return r < 0.42 ? 1 : r < 0.62 ? 2 : r < 0.72 ? 5 : r < 0.81 ? 3 : r < 0.89 ? 4 : r < 0.95 ? 7 : 6; }
-const MAP_W = 96, MAP_H = 72;
+const MAP_W = 150, MAP_H = 112;         // new islands; farms saved before the island grew keep 96 x 72
 
 class World {
-  constructor(seed) {
-    this.seed = seed; this.W = MAP_W; this.H = MAP_H;
+  constructor(seed, size) {
+    this.seed = seed; this.W = size ? size[0] : MAP_W; this.H = size ? size[1] : MAP_H; this.s = this.W / 96;
     const n = this.W * this.H;
     this.ter = new Uint8Array(n);        // WATER / SAND / GRASS
     this.pond = new Uint8Array(n);
@@ -1182,19 +1182,23 @@ class World {
     this.farm = { x: Math.round(cx - 6), y: Math.round(cy - 2) };
     this.makePond(this.farm.x + 22 + Math.round(r() * 4), this.farm.y + 4 + Math.round(r() * 6), 5 + r() * 2, r);
     this.makePond(this.farm.x - 24 - Math.round(r() * 4), this.farm.y + 12 + Math.round(r() * 4), 3.5 + r(), r);
+    if (this.s > 1.2) {   // a bigger island gets a couple more ponds out in the wild
+      this.makePond(this.farm.x + 8 + Math.round(r() * 10), this.farm.y - 26 - Math.round(r() * 4), 4 + r() * 2, r);
+      this.makePond(this.farm.x + 34 + Math.round(r() * 6), this.farm.y + 28 + Math.round(r() * 4), 4.5 + r() * 2, r);
+    }
     this.cleanup();
     // scenery: forests where the noise says so, clear around the farm
     const F = makeNoise(this.seed + 99);
     for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
       const i = this.idx(x, y); if (this.ter[i] !== GRASS) continue;
       const fd = dist(x, y, this.farm.x, this.farm.y);
-      const forest = F(x / 11, y / 11, 3) + 0.08 - (fd < 16 ? 1 : fd < 22 ? (22 - fd) / 10 : 0);
+      const forest = F(x / 11, y / 11, 3) + 0.08 - (fd < 16 * this.s ? 1 : fd < 22 * this.s ? (22 * this.s - fd) / 10 : 0);
       if (!this.nearType(x, y, 1, (q) => q !== GRASS)) {
         if (forest > 0.0 && r() < 0.6) this.addTree(x, y, r);
         else if (forest > -0.12 && r() < 0.08) this.addTree(x, y, r);
       }
     }
-    for (let k = 0; k < 1500; k++) {
+    for (let k = 0; k < 1500 * (W * H) / (96 * 72); k++) {
       const x = 1 + Math.floor(r() * (W - 2)), y = 1 + Math.floor(r() * (H - 2)), i = this.idx(x, y);
       if (this.objAt.has(i) || this.ter[i] === WATER) continue;
       const fd = dist(x, y, this.farm.x, this.farm.y);
@@ -1903,7 +1907,7 @@ class Game {
   constructor(opts) {
     this.DAY_SEC = 300;                      // a day (6:00 to midnight) lasts 5 real minutes
     this.seed = opts.seed || (Math.random() * 1e9) | 0;
-    this.world = new World(this.seed);
+    this.world = new World(this.seed, opts.save ? [opts.save.ww || 96, opts.save.wh || 72] : null);
     this.things = [];                        // placed buildings + decor
     this.animals = []; this.items = []; this.fx = []; this.floats = [];
     this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.helpers = []; this.fert = 0; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
@@ -1922,7 +1926,7 @@ class Game {
   // ------------------------------------------------------- the starting farm
   newFarm() {
     const W = this.world, fx = W.farm.x, fy = W.farm.y;
-    W.clearArea(fx - 14, fy - 10, fx + 14, fy + 12, true);
+    const cr = Math.round(14 * W.s); W.clearArea(fx - cr, fy - Math.round(10 * W.s), fx + cr, fy + Math.round(12 * W.s), true);
     const home = this.place('house', fx - 2, fy - 3, 2, true);
     const coop = this.place('coop', fx - 11, fy - 2, 0, true);
     this.place('stall', fx + 6, fy + 1, 0, true).shop = true;
@@ -1942,23 +1946,23 @@ class Game {
     this.toast(`Welcome to ${this.farmName}! Your two hens need food, water and love.`, 'good');
   }
   spawnWild() {
-    const W = this.world, r = mulberry32(this.seed + 5);
+    const W = this.world, r = mulberry32(this.seed + 5), m = W.s * W.s;   // more critters on a bigger island
     const ponds = []; for (let i = 0; i < W.W * W.H; i++) if (W.pond[i]) ponds.push(i);
     const edge = ponds.filter((i) => W.nearType(i % W.W, (i / W.W) | 0, 1, (q) => q !== WATER));
     const inner = ponds.filter((i) => !W.nearType(i % W.W, (i / W.W) | 0, 1, (q) => q !== WATER));
     const pickTile = (arr) => { const i = arr[Math.floor(r() * arr.length)]; return [i % W.W, (i / W.W) | 0]; };
     const color = (sk) => { const cs = SPECIES[sk].colors; const w = cs.map((c) => [1, 0.45, 0.18, 0.06][c.rare]); let s = r() * w.reduce((a, b) => a + b); for (let i = 0; i < cs.length; i++) { s -= w[i]; if (s <= 0) return i; } return 0; };
     // frogs sit on the grassy banks
-    for (let k = 0; k < 7 && edge.length; k++) {
+    for (let k = 0; k < Math.round(7 * m) && edge.length; k++) {
       const [x, y] = pickTile(edge);
       for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1]]) if (W.walkable(x + dx, y + dy)) { this.animals.push(new Animal('frog', color('frog'), x + dx + 0.5, y + dy + 0.6)); break; }
     }
-    for (let k = 0; k < 3 && inner.length; k++) { const [x, y] = pickTile(inner); this.animals.push(new Animal('swan', color('swan'), x + 0.5, y + 0.6)); }
-    for (let k = 0; k < 3 && inner.length; k++) { const [x, y] = pickTile(inner); if (this.animals.some((a) => a.sk === 'capybara' && dist(a.x, a.y, x, y) < 2)) continue; this.animals.push(new Animal('capybara', r() < 0.15 ? 1 : 0, x + 0.5, y + 0.6)); }
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < Math.round(3 * m) && inner.length; k++) { const [x, y] = pickTile(inner); this.animals.push(new Animal('swan', color('swan'), x + 0.5, y + 0.6)); }
+    for (let k = 0; k < Math.round(3 * m) && inner.length; k++) { const [x, y] = pickTile(inner); if (this.animals.some((a) => a.sk === 'capybara' && dist(a.x, a.y, x, y) < 2)) continue; this.animals.push(new Animal('capybara', r() < 0.15 ? 1 : 0, x + 0.5, y + 0.6)); }
+    for (let k = 0; k < Math.round(6 * m); k++) {
       for (let tries = 0; tries < 30; tries++) {
         const x = Math.floor(r() * W.W), y = Math.floor(r() * W.H);
-        if (W.walkable(x, y) && W.get(x, y) === GRASS && dist(x, y, W.farm.x, W.farm.y) > 14) { this.animals.push(new Animal('mouse', color('mouse'), x + 0.5, y + 0.6)); break; }
+        if (W.walkable(x, y) && W.get(x, y) === GRASS && dist(x, y, W.farm.x, W.farm.y) > 14 * W.s) { this.animals.push(new Animal('mouse', color('mouse'), x + 0.5, y + 0.6)); break; }
       }
     }
   }
@@ -2401,7 +2405,7 @@ class Game {
   serialize() {
     const W = this.world;
     return {
-      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
+      v: 1, ww: this.world.W, wh: this.world.H, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
       look: this.player.look, px: this.player.x, py: this.player.y, inside: this.inside ? this.inside.house.uid : null, nextUid: this.nextUid,
       things: this.things.map((o) => ({ uid: o.uid, id: o.id, x: o.x, y: o.y, v: o.v, amount: o.amount, eggs: o.eggs, shop: o.shop, room: o.room, honey: o.honey })),
       paths: [...W.path.keys()].filter((i) => W.path[i]),
@@ -2595,7 +2599,7 @@ Object.assign(Game.prototype, {
       for (let k = 0, made = 0; k < n * 25 && made < n; k++) {
         const x = 1 + Math.floor(r() * (W.W - 2)), y = 1 + Math.floor(r() * (W.H - 2)), i = W.idx(x, y);
         if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, this.player.x, this.player.y) < 5) continue;
-        if (dist(x, y, W.farm.x, W.farm.y) < 15 || this.things.some((o) => dist(o.x, o.y, x, y) < 5)) continue;
+        if (dist(x, y, W.farm.x, W.farm.y) < 15 * W.s || this.things.some((o) => dist(o.x, o.y, x, y) < 5)) continue;
         W.addObj(Object.assign({ kind, x, y }, make())); if (kind === 'rock' || kind === 'ore') W.block[i] = 1; made++;
       }
     };
@@ -2607,7 +2611,7 @@ Object.assign(Game.prototype, {
     // a few new saplings appear in the woods when trees have been dug out
     for (let k = 0, made = 0, n = want('tree', 3); k < 200 && made < n; k++) {
       const x = 1 + Math.floor(r() * (W.W - 2)), y = 1 + Math.floor(r() * (W.H - 2)), i = W.idx(x, y);
-      if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, W.farm.x, W.farm.y) < 15) continue;
+      if (W.ter[i] !== GRASS || W.path[i] || W.soil[i] || W.dug[i] || W.block[i] || W.objAt.has(i) || this.thingAt(x, y) || dist(x, y, W.farm.x, W.farm.y) < 15 * W.s) continue;
       if (!W.nearType(x, y, 2, () => false) && !W.objs.some((o) => o.kind === 'tree' && Math.abs(o.x - x) <= 3 && Math.abs(o.y - y) <= 3)) continue;   // next to other trees
       const t = W.addTree(x, y, r); t.size = 'Small'; t.nextGrow = this.now() + 1440 * 0.7; made++;
     }
@@ -3050,7 +3054,7 @@ Object.assign(Game.prototype, {
       h.wait -= dt; if (h.wait > 0) continue;
       const job = this.planHelper(h);
       if (job) {
-        const p = findPath(W, Math.floor(h.x), Math.floor(h.y), job.tx, job.ty, 9000, job.near || 1, (a, b) => W.walkP(a, b));
+        const p = findPath(W, Math.floor(h.x), Math.floor(h.y), job.tx, job.ty, 20000, job.near || 1, (a, b) => W.walkP(a, b));
         if (p) { h.path = p.length ? p : null; h.task = job; h.status = job.status; continue; }
       }
       // nothing to do: potter about near home
@@ -4239,7 +4243,7 @@ function installBuild(game, app, ui) {
     const P0 = game.player, W = game.inside || game.world;
     if (dist(P0.x, P0.y, x, y) <= Math.max(reach, 0.6) + 0.4 && cb) { P0.path = null; P0.face(x - P0.x, y - P0.y); cb(); return; }
     let tx = Math.floor(x), ty = Math.floor(y);
-    let p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 6000, reach > 2 ? 2 : reach > 0.7 ? 1 : thing ? 1 : 0, (a, b) => W.walkP(a, b));
+    let p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 20000, reach > 2 ? 2 : reach > 0.7 ? 1 : thing ? 1 : 0, (a, b) => W.walkP(a, b));
     if (!p && reach > 2) p = findPath(W, Math.floor(P0.x), Math.floor(P0.y), tx, ty, 6000, 3, (a, b) => W.walkP(a, b));
     if (p) { P0.path = p; P0.onArrive = cb ? () => { P0.face(x - P0.x, y - P0.y); cb(); } : null; if (!p.length && cb) { P0.onArrive = null; cb(); } }
     else game.toast('You can\'t get there from here.', 'bad');

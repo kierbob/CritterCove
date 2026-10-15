@@ -171,7 +171,7 @@ class Game {
   constructor(opts) {
     this.DAY_SEC = 300;                      // a day (6:00 to midnight) lasts 5 real minutes
     this.seed = opts.seed || (Math.random() * 1e9) | 0;
-    this.world = new World(this.seed);
+    this.world = new World(this.seed, opts.save ? [opts.save.ww || 96, opts.save.wh || 72] : null);
     this.things = [];                        // placed buildings + decor
     this.animals = []; this.items = []; this.fx = []; this.floats = [];
     this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.helpers = []; this.fert = 0; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
@@ -190,7 +190,7 @@ class Game {
   // ------------------------------------------------------- the starting farm
   newFarm() {
     const W = this.world, fx = W.farm.x, fy = W.farm.y;
-    W.clearArea(fx - 14, fy - 10, fx + 14, fy + 12, true);
+    const cr = Math.round(14 * W.s); W.clearArea(fx - cr, fy - Math.round(10 * W.s), fx + cr, fy + Math.round(12 * W.s), true);
     const home = this.place('house', fx - 2, fy - 3, 2, true);
     const coop = this.place('coop', fx - 11, fy - 2, 0, true);
     this.place('stall', fx + 6, fy + 1, 0, true).shop = true;
@@ -210,23 +210,23 @@ class Game {
     this.toast(`Welcome to ${this.farmName}! Your two hens need food, water and love.`, 'good');
   }
   spawnWild() {
-    const W = this.world, r = mulberry32(this.seed + 5);
+    const W = this.world, r = mulberry32(this.seed + 5), m = W.s * W.s;   // more critters on a bigger island
     const ponds = []; for (let i = 0; i < W.W * W.H; i++) if (W.pond[i]) ponds.push(i);
     const edge = ponds.filter((i) => W.nearType(i % W.W, (i / W.W) | 0, 1, (q) => q !== WATER));
     const inner = ponds.filter((i) => !W.nearType(i % W.W, (i / W.W) | 0, 1, (q) => q !== WATER));
     const pickTile = (arr) => { const i = arr[Math.floor(r() * arr.length)]; return [i % W.W, (i / W.W) | 0]; };
     const color = (sk) => { const cs = SPECIES[sk].colors; const w = cs.map((c) => [1, 0.45, 0.18, 0.06][c.rare]); let s = r() * w.reduce((a, b) => a + b); for (let i = 0; i < cs.length; i++) { s -= w[i]; if (s <= 0) return i; } return 0; };
     // frogs sit on the grassy banks
-    for (let k = 0; k < 7 && edge.length; k++) {
+    for (let k = 0; k < Math.round(7 * m) && edge.length; k++) {
       const [x, y] = pickTile(edge);
       for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1]]) if (W.walkable(x + dx, y + dy)) { this.animals.push(new Animal('frog', color('frog'), x + dx + 0.5, y + dy + 0.6)); break; }
     }
-    for (let k = 0; k < 3 && inner.length; k++) { const [x, y] = pickTile(inner); this.animals.push(new Animal('swan', color('swan'), x + 0.5, y + 0.6)); }
-    for (let k = 0; k < 3 && inner.length; k++) { const [x, y] = pickTile(inner); if (this.animals.some((a) => a.sk === 'capybara' && dist(a.x, a.y, x, y) < 2)) continue; this.animals.push(new Animal('capybara', r() < 0.15 ? 1 : 0, x + 0.5, y + 0.6)); }
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < Math.round(3 * m) && inner.length; k++) { const [x, y] = pickTile(inner); this.animals.push(new Animal('swan', color('swan'), x + 0.5, y + 0.6)); }
+    for (let k = 0; k < Math.round(3 * m) && inner.length; k++) { const [x, y] = pickTile(inner); if (this.animals.some((a) => a.sk === 'capybara' && dist(a.x, a.y, x, y) < 2)) continue; this.animals.push(new Animal('capybara', r() < 0.15 ? 1 : 0, x + 0.5, y + 0.6)); }
+    for (let k = 0; k < Math.round(6 * m); k++) {
       for (let tries = 0; tries < 30; tries++) {
         const x = Math.floor(r() * W.W), y = Math.floor(r() * W.H);
-        if (W.walkable(x, y) && W.get(x, y) === GRASS && dist(x, y, W.farm.x, W.farm.y) > 14) { this.animals.push(new Animal('mouse', color('mouse'), x + 0.5, y + 0.6)); break; }
+        if (W.walkable(x, y) && W.get(x, y) === GRASS && dist(x, y, W.farm.x, W.farm.y) > 14 * W.s) { this.animals.push(new Animal('mouse', color('mouse'), x + 0.5, y + 0.6)); break; }
       }
     }
   }
@@ -669,7 +669,7 @@ class Game {
   serialize() {
     const W = this.world;
     return {
-      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
+      v: 1, ww: this.world.W, wh: this.world.H, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
       look: this.player.look, px: this.player.x, py: this.player.y, inside: this.inside ? this.inside.house.uid : null, nextUid: this.nextUid,
       things: this.things.map((o) => ({ uid: o.uid, id: o.id, x: o.x, y: o.y, v: o.v, amount: o.amount, eggs: o.eggs, shop: o.shop, room: o.room, honey: o.honey })),
       paths: [...W.path.keys()].filter((i) => W.path[i]),
