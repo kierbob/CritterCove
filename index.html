@@ -3850,7 +3850,7 @@ function installBuild(game, app, ui) {
         const sx = bx + 2 + k * 7 + Math.sin(time * 0.25 + k + n) * 1.5, sy = BEACH.shoreY + 4 + h(20 + k) * 8;
         const f = Math.floor(time * 6 + k) % 4;
         const nf = Math.max(1, rowFrames(key, 32, 32)[WBIRD.swim] || 1);
-        R.spr(key, (f % nf) * 32, WBIRD.swim * 32, 32, 32, sx, sy + bob(k), { oy: 10, flip: Math.cos(time * 0.25 + k + n) < 0 });
+        R.spr(key, (f % nf) * 32, WBIRD.swim * 32, 32, 32, sx, sy + bob(k), { oy: 10, flip: Math.cos(time * 0.25 + k + n) > 0 });
       }
       // a capybara having a soak
       if (h(30) < 0.5) { const im = IMG['Animals/Kapybara/Static/Kapybara_Idle']; if (im) { const nf = im.width / 32; R.spr('Animals/Kapybara/Static/Kapybara_Idle', (Math.floor(time * 5) % nf) * 32, 0, 32, 32, bx + 18, BEACH.shoreY + 3.2, { oy: 6 }); } }
