@@ -101,7 +101,7 @@ function installUI(game, app) {
     $('#hDay').textContent = `Day ${game.day}`;
     const h = Math.floor(game.time / 60) % 24, m = Math.floor(game.time % 60 / 10) * 10;
     $('#hTime').textContent = `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
-    $('#hWx').textContent = game.weather.rain > 0.3 ? '☂ Rain' : game.isNight() ? '☾ Night' : '☀ Sunny';
+    const K = game.weather.kind; $('#hWx').textContent = game.weather.rain > 0.3 ? '☂ Rain' : game.isNight() ? '☾ Night' : K === 'windy' ? '༄ Windy' : K === 'cloudy' || K === 'rain' ? '☁ Cloudy' : '☀ Sunny';
     const b = game.beauty(), stars = b < 20 ? 1 : b < 60 ? 2 : b < 120 ? 3 : b < 220 ? 4 : 5;
     $('#hBeauty').innerHTML = `Farm beauty <span style="color:var(--gold);letter-spacing:1px">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>`;
     $('#hCoins').textContent = game.coins;
@@ -314,7 +314,10 @@ function installUI(game, app) {
     body.appendChild(el('p', '', r.produce ? `${r.produce} of your animals ${r.produce > 1 ? 'are' : 'is'} ready to give you something today.` : 'Feed, water and pat your animals so they have something for you tomorrow.'));
     if (r.unhappy.length) body.appendChild(el('p', '', `${r.unhappy.slice(0, 3).map((a) => a.name).join(', ')} ${r.unhappy.length > 1 ? 'were' : 'was'} a bit sad yesterday.`));
     if (r.full) body.appendChild(el('p', '', `Some of your ${[...new Set(r.full)].map((sk) => SPECIES[sk].plural.toLowerCase()).join(' and ')} wanted a baby, but there's no room at home. Build another ${r.full.some((sk) => SPECIES[sk].home === 'barn') ? 'barn' : 'coop'}!`));
-    if (game.weather.raining) body.appendChild(el('p', '', 'It looks like rain later. The troughs will fill themselves!'));
+    if (game.weather.raining) body.appendChild(el('p', '', 'It looks like rain later. The troughs will fill themselves, and the rain waters your crops!'));
+    else if (game.weather.kind === 'windy') body.appendChild(el('p', '', 'A breezy day today. Hold on to your hat!'));
+    else if (game.weather.kind === 'cloudy') body.appendChild(el('p', '', 'A soft, cloudy day.'));
+    else body.appendChild(el('p', '', 'Sunny skies all day. Perfect butterfly weather!'));
     $('#morning').classList.remove('hidden');
   });
   game.on('dex', ({ sk, color }) => { const S = SPECIES[sk]; if (game.started) game.toast(`New in your Critterdex: ${S.colors[color].name} ${S.name}!`, 'good'); });

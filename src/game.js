@@ -130,7 +130,7 @@ class Game {
     this.things = [];                        // placed buildings + decor
     this.animals = []; this.items = []; this.fx = []; this.floats = [];
     this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
-    this.weather = { rain: 0, raining: false }; this.dayTruffles = 0; this.stats = { sold: 0, born: 0, eggs: 0 }; this.goal = 0; this.goalT = 0;
+    this.weather = { rain: 0, raining: false, kind: 'sunny', clouds: 0.15, wind: 0.2 }; this.dayTruffles = 0; this.stats = { sold: 0, born: 0, eggs: 0 }; this.goal = 0; this.goalT = 0;
     this.listeners = {}; this.farmName = opts.farmName || 'Sunny Acres'; this.slot = opts.slot || 1;
     this.player = new Player(this.world.farm.x + 0.5, this.world.farm.y + 4.6, opts.look);
     this.initActivities();
@@ -471,6 +471,12 @@ class Game {
     // weather drifts towards today's plan
     const want = this.weather.raining && this.time > this.weather.from && this.time < this.weather.to ? 1 : 0;
     this.weather.rain += (want - this.weather.rain) * Math.min(1, dt * 0.4);
+    // clouds and wind drift towards what today's weather wants
+    const K = this.weather.kind || 'sunny', Wt = this.weather;
+    const cT = K === 'rain' ? (want ? 1 : 0.55) : K === 'cloudy' ? 0.75 : K === 'windy' ? 0.35 : 0.12;
+    const wT = K === 'windy' ? 1 : K === 'rain' ? 0.45 : K === 'cloudy' ? 0.3 : 0.15;
+    Wt.clouds = (Wt.clouds ?? cT) + (cT - (Wt.clouds ?? cT)) * Math.min(1, dt * 0.15);
+    Wt.wind = (Wt.wind ?? wT) + (wT - (Wt.wind ?? wT)) * Math.min(1, dt * 0.15);
     if (this.weather.rain > 0.5) { for (const o of this.things) if (DEF[o.id].feeder === 'trough') o.amount = DEF[o.id].cap; if (!this.rained) { this.rained = true; this.rainOnSoil(); } } else this.rained = false;
     for (const a of this.animals) a.update(dt, this);
     this.updateBugs(dt);
@@ -556,6 +562,9 @@ class Game {
     // weather: about one day in four has a shower
     const rnd = mulberry32(this.seed + this.day * 31)();
     this.weather.raining = rnd < 0.25 && this.day > 2; this.weather.from = 8 * 60 + rnd * 600; this.weather.to = this.weather.from + 120 + rnd * 300;
+    // and the rest of the cycle: sunny, cloudy or windy days
+    const r2 = mulberry32(this.seed + this.day * 57)();
+    this.weather.kind = this.weather.raining ? 'rain' : this.day <= 2 ? 'sunny' : r2 < 0.45 ? 'sunny' : r2 < 0.72 ? 'cloudy' : 'windy';
     // sleepers wake up at home
     const house = this.things.find((o) => o.id === 'house');
     if (this.inside) { const bed = this.inside.things.find((o) => DEF[o.id].bed), r = this.inside; this.player.x = bed ? Math.min(r.W - 0.5, bed.x + bed.w + 0.5) : r.door[0] + 0.5; this.player.y = bed ? bed.y + 1.6 : r.door[1] + 0.6; this.player.dir = 'down'; this.player.path = null; }
@@ -601,7 +610,7 @@ class Game {
       objs: this.world.objs.map((o) => { const c = Object.assign({}, o); delete c.shake; return c; }),
       fishDex: this.fishDex, tut: this.tut,
       animals: this.animals.filter((a) => !a.wild).map((a) => ({ id: a.id, sk: a.sk, color: a.color, name: a.name, x: a.x, y: a.y, age: a.age, friend: a.friend, happy: a.happy, home: a.home, ready: a.ready, muddy: a.muddy, hunger: a.hunger, thirst: a.thirst, adopted: a.adopted, hx: a.hx, hy: a.hy, gift: a.gift })),
-      weather: { raining: this.weather.raining, from: this.weather.from, to: this.weather.to },
+      weather: { raining: this.weather.raining, from: this.weather.from, to: this.weather.to, kind: this.weather.kind },
     };
   }
   save() { store.set(SLOT_KEY(this.slot || 1), this.serialize()); }

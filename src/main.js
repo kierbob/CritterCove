@@ -189,7 +189,7 @@
 
   // ----------------------------------------------------------------- loop
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; time += dt;
     if (fading) {
       fading += dt * 1.4;
       if (fading >= 1 && fadeCb) { const f = fadeCb; fadeCb = null; f(); }
@@ -226,7 +226,9 @@
     const grass = (x) => shoreY - 5 + Math.sin(x * 0.17 + 2) * 1.1 + Math.sin(x * 0.05) * 1.5;
     return { W, H, shoreY, grass, inb: (x, y) => x >= 0 && y >= 0 && x < W && y < H, get: (x, y) => (y < grass(x) ? GRASS : y < shore(x) ? SAND : WATER), isPond: () => false };
   })();
-  function drawBeach() {
+  // the menu's weather goes round a little cycle: sunny, breezy, cloudy, a shower
+  const menuWx = { c: 0.15, w: 0.2, r: 0 };
+  function drawBeach(dt) {
     R.drawGround(BEACH, time);
     const [x0, y0, x1] = R.view(), g = R.g;
     // a meadow above the beach: trees, bushes and flowers
@@ -243,6 +245,13 @@
     }
     list.sort((a, b) => a[0] - b[0]);
     for (const [, o] of list) drawObj(R, o, time);
+    drawBeachLife();
+    const ph = (((Math.floor(time / 20) % 4) + 4) % 4) || 0, T = [[0.12, 0.15, 0], [0.35, 1, 0], [0.8, 0.3, 0], [1, 0.45, 0.8]][ph], k = Math.min(1, dt * 0.25);
+    menuWx.c += (T[0] - menuWx.c) * k; menuWx.w += (T[1] - menuWx.w) * k; menuWx.r += (T[2] - menuWx.r) * k;
+    drawSky(dt, menuWx.c, menuWx.w); drawRain(dt, menuWx.r);
+  }
+  function drawBeachLife() {
+    const [x0, , x1] = R.view();
     // things that drift past: repeat every 24 tiles along the beach
     for (let n = Math.floor(x0 / 24) - 1; n <= Math.ceil(x1 / 24) + 1; n++) {
       const bx = n * 24, h = (k) => hash2(n, k, 7);
@@ -254,17 +263,18 @@
         const sk = ['swan', 'duck', 'swan'][k], c = Math.floor(h(10 + k) * SPECIES[sk].colors.length), key = SPECIES[sk].colors[c].key;
         const sx = bx + 2 + k * 7 + Math.sin(time * 0.25 + k + n) * 1.5, sy = BEACH.shoreY + 4 + h(20 + k) * 8;
         const f = Math.floor(time * 6 + k) % 4;
-        R.spr(key, f * 32, WBIRD.swim * 32, 32, 32, sx, sy + bob(k), { oy: 10, flip: Math.cos(time * 0.25 + k + n) < 0 });
+        const nf = Math.max(1, rowFrames(key, 32, 32)[WBIRD.swim] || 1);
+        R.spr(key, (f % nf) * 32, WBIRD.swim * 32, 32, 32, sx, sy + bob(k), { oy: 10, flip: Math.cos(time * 0.25 + k + n) < 0 });
       }
       // a capybara having a soak
       if (h(30) < 0.5) { const im = IMG['Animals/Kapybara/Static/Kapybara_Idle']; if (im) { const nf = im.width / 32; R.spr('Animals/Kapybara/Static/Kapybara_Idle', (Math.floor(time * 5) % nf) * 32, 0, 32, 32, bx + 18, BEACH.shoreY + 3.2, { oy: 6 }); } }
       // chickens and frogs on the sand
-      if (h(40) < 0.6) { const ck = SPECIES.chicken.colors[Math.floor(h(41) * 10)].key, f = Math.floor(time * 3 + n) % 4; R.spr(ck, f * 32, 0, 32, 32, bx + 10 + h(42) * 6, BEACH.shoreY - 4 - h(43) * 6, { oy: 8, flip: h(44) < 0.5 }); }
+      if (h(40) < 0.6) { const ck = SPECIES.chicken.colors[Math.floor(h(41) * 10)].key, f = Math.floor(time * 3 + n) % Math.max(1, rowFrames(ck, 32, 32)[0] || 1); R.spr(ck, f * 32, 0, 32, 32, bx + 10 + h(42) * 6, BEACH.shoreY - 4 - h(43) * 6, { oy: 8, flip: h(44) < 0.5 }); }
     }
   }
   function draw(dt) {
     const g = R.g; g.imageSmoothingEnabled = false;
-    if (!game.started) return drawBeach();
+    if (!game.started) return drawBeach(dt);
     if (game.inside) return drawInside(dt);
     R.drawGround(game.world, time);
     { const [a0, b0, a1, b1] = R.view(); game.drawSoil(R, a0, b0, a1, b1); }
@@ -299,9 +309,10 @@
     }
     // bubbles over animals that want something
     for (const a of game.animals) if (!a.wild && !a.adopted && a.x > x0 && a.x < x1 && a.y > y0 && a.y < y1) drawNeed(a);
+    drawSky(dt, game.weather.clouds ?? 0.12, game.weather.wind ?? 0.15);
     drawRain(dt);
     // day / night
-    const amb = ambient(game.time), lights = [];
+    const amb = ambient(game.time).map((v) => v * (1 - (game.weather.clouds || 0) * 0.07)), lights = [];
     if (amb[2] < 245) {
       for (const o of game.things) if (DEF[o.id].light && o.x > x0 - 6 && o.x < x1 + 6 && o.y > y0 - 6 && o.y < y1 + 6) {
         if (o.id === 'house') lights.push({ x: o.x + o.w / 2, y: o.y + o.h - 0.8, r: 5, c: [255, 190, 110], a: 0.55 });
@@ -456,8 +467,30 @@
     const rain = game.weather.rain; return c.map((v, i) => v * (1 - rain * 0.22) + (i === 2 ? rain * 12 : 0));
   }
   const drops = [];
-  function drawRain(dt) {
-    const rain = game.weather.rain; if (rain < 0.02) { drops.length = 0; return; }
+  // drifting cloud shadows and little gusts of wind (world space, so they move with the map)
+  const sky = { clouds: [], gusts: [] }; window.__sky = sky;
+  function drawSky(dt, cloudAmt, windAmt) {
+    const [x0, y0, x1, y1] = R.view(), g = R.g, vw = x1 - x0, vh = y1 - y0, drift = 0.35 + windAmt * 1.4;
+    const want = Math.round(cloudAmt * Math.max(2, vw * vh / 70));
+    while (sky.clouds.filter((c) => !c.out).length < want) sky.clouds.push({ x: x0 - 8 + Math.random() * (vw + 8), y: y0 - 4 + Math.random() * (vh + 4), v: Math.floor(Math.random() * 4), a: 0, out: false, s: 1.6 + Math.random() * 0.8 });
+    let extra = sky.clouds.filter((c) => !c.out).length - want; for (const c of sky.clouds) if (extra > 0 && !c.out) { c.out = true; extra--; }
+    for (const c of sky.clouds) {
+      c.x += drift * dt; c.a = Math.max(0, Math.min(1, c.a + (c.out ? -dt * 0.4 : dt * 0.3)));
+      if (c.x > x1 + 6 || c.x < x0 - 14 || c.y < y0 - 8 || c.y > y1 + 8) { c.x = x0 - 6 - Math.random() * 4; c.y = y0 + Math.random() * vh; c.a = 0; }
+      g.globalAlpha = 0.36 * c.a; R.spr('Weather effects/Clouds', (c.v % 2) * 64, (c.v >> 1) * 64, 64, 64, c.x, c.y, { scale: c.s }); g.globalAlpha = 1;
+    }
+    sky.clouds = sky.clouds.filter((c) => !(c.out && c.a <= 0));
+    // gusts: a few at a time, never a blizzard
+    if (sky.gusts.length < 1 + Math.round(windAmt * 3) && Math.random() < dt * windAmt * 1.6) sky.gusts.push({ x: x0 + Math.random() * vw, y: y0 + 1 + Math.random() * (vh - 2), t: 0 });
+    for (const w of sky.gusts) {
+      w.t += dt; w.x += (1 + windAmt * 1.5) * dt;
+      const f = Math.floor(w.t * 12); if (f >= 14) continue;
+      g.globalAlpha = 1; R.spr('Weather effects/Wind_Anim', f * 16, 0, 16, 16, w.x, w.y, { scale: 2.2 }); g.globalAlpha = 1;
+    }
+    sky.gusts = sky.gusts.filter((w) => w.t * 12 < 14);
+  }
+  function drawRain(dt, amt) {
+    const rain = amt ?? game.weather.rain; if (rain < 0.02) { drops.length = 0; return; }
     const g = R.g, want = Math.floor(rain * 220 * (R.W * R.H) / 1.5e6);
     while (drops.length < want) drops.push({ x: Math.random() * R.W, y: Math.random() * R.H, v: 0.8 + Math.random() * 0.4, life: 0.3 + Math.random() * 0.7 });
     drops.length = Math.min(drops.length, want);
