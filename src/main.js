@@ -423,7 +423,7 @@
     }
     const it = game.items.find((q) => dist(wx, wy, q.x, q.y - 0.3) < 0.6);
     if (it) return { it, label: `Pick up ${itemName(it.item).toLowerCase()}` };
-    if (game.fishing) return { label: game.fishing.state === 'bite' ? 'Click now!' : 'Click to reel in' };
+    if (game.fishing && game.fishing.state !== 'cast') return { label: game.fishing.state === 'bite' ? 'Click now!' : 'Click to reel in' };
     const o = game.thingVisualAt(wx, wy);
     if (!o) {
       const so = soilAt(wx, wy); if (so) return { soil: so, label: game.soilLabel(so[0], so[1]) };

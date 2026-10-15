@@ -2034,12 +2034,12 @@ class Game {
     this.coins -= D.price * n; this.put(id, n); this.sfx('coin'); this.emit('changed'); return null;
   }
   canLift(o) {
-    if (o.shop) return 'The market stall stays put: it\'s where you shop!';
     return null;
   }
   // put something back in your bag (it keeps its full value)
   store(o) {
     const why = this.canLift(o); if (why) return this.toast(why, 'bad');
+    if (o.shop) return this.toast('The market stall can\'t go in your bag, but you can Move it anywhere you like.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep! Move it instead.', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Animals live here. Use Move to put their home somewhere else.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o); this.put(o.id);
@@ -2058,7 +2058,7 @@ class Game {
   }
   canDrop(o, x, y) { this.ignoreBag = true; const why = this.canPlace(o.id, x, y, o.v); this.ignoreBag = false; return why; }
   remove(o) {
-    if (o.shop) return this.toast('The market stall is where you shop. Keep it!', 'bad');
+    if (o.shop) return this.toast('The market stall is where you shop, so it can\'t be destroyed. Use Move to put it somewhere else.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep!', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Some animals live here. Move them first by building another home.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o);
@@ -2292,6 +2292,7 @@ class Game {
     if (item === 'goldenEgg') this.toast(`${a.name} laid a golden egg! ✨`, 'good');
   }
   endDay() {
+    this.fishing = null; if (this.player.act) this.player.act = null;
     // overnight: animals settle up, babies arrive, a new day begins at 6:00
     const report = { babies: [], produce: 0, unhappy: [] };
     const owned = this.animals.filter((a) => !a.wild);
@@ -2534,6 +2535,8 @@ Object.assign(Game.prototype, {
   },
   updateFishing(dt) {
     const F = this.fishing; if (!F) return;
+    // if anything interrupted the cast or the line (another action, sleep, a door...), put the rod away
+    const A0 = this.player.act; if (!A0 || (A0.kind !== 'cast' && A0.kind !== 'reel')) { this.fishing = null; return; }
     F.t += dt;
     const A = this.player.act;
     if (A && A.kind === 'reel' && A.frame !== undefined) A.frame = F.state === 'bite' ? Math.floor(F.t * 12) % 2 : 0;
@@ -3018,6 +3021,7 @@ Object.assign(Game.prototype, {
   roomOf(house) { if (!house._room) house._room = new Room(this, house); return house._room; },
   scene() { return this.inside || this; },
   enterHouse(house) {
+    this.fishing = null; this.player.act = null;
     const room = this.roomOf(house); this.inside = room; this.outsidePos = [this.player.x, this.player.y];
     this.player.x = room.door[0] + 0.5; this.player.y = room.door[1] + 0.6; this.player.dir = 'up'; this.player.path = null;
     this.sfx('door'); this.emit('scene', room);
@@ -4169,7 +4173,7 @@ function installBuild(game, app, ui) {
     }
     const it = game.items.find((q) => dist(wx, wy, q.x, q.y - 0.3) < 0.6);
     if (it) return { it, label: `Pick up ${itemName(it.item).toLowerCase()}` };
-    if (game.fishing) return { label: game.fishing.state === 'bite' ? 'Click now!' : 'Click to reel in' };
+    if (game.fishing && game.fishing.state !== 'cast') return { label: game.fishing.state === 'bite' ? 'Click now!' : 'Click to reel in' };
     const o = game.thingVisualAt(wx, wy);
     if (!o) {
       const so = soilAt(wx, wy); if (so) return { soil: so, label: game.soilLabel(so[0], so[1]) };

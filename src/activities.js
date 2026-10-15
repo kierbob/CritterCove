@@ -100,6 +100,8 @@ Object.assign(Game.prototype, {
   },
   updateFishing(dt) {
     const F = this.fishing; if (!F) return;
+    // if anything interrupted the cast or the line (another action, sleep, a door...), put the rod away
+    const A0 = this.player.act; if (!A0 || (A0.kind !== 'cast' && A0.kind !== 'reel')) { this.fishing = null; return; }
     F.t += dt;
     const A = this.player.act;
     if (A && A.kind === 'reel' && A.frame !== undefined) A.frame = F.state === 'bite' ? Math.floor(F.t * 12) % 2 : 0;

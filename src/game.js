@@ -309,12 +309,12 @@ class Game {
     this.coins -= D.price * n; this.put(id, n); this.sfx('coin'); this.emit('changed'); return null;
   }
   canLift(o) {
-    if (o.shop) return 'The market stall stays put: it\'s where you shop!';
     return null;
   }
   // put something back in your bag (it keeps its full value)
   store(o) {
     const why = this.canLift(o); if (why) return this.toast(why, 'bad');
+    if (o.shop) return this.toast('The market stall can\'t go in your bag, but you can Move it anywhere you like.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep! Move it instead.', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Animals live here. Use Move to put their home somewhere else.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o); this.put(o.id);
@@ -333,7 +333,7 @@ class Game {
   }
   canDrop(o, x, y) { this.ignoreBag = true; const why = this.canPlace(o.id, x, y, o.v); this.ignoreBag = false; return why; }
   remove(o) {
-    if (o.shop) return this.toast('The market stall is where you shop. Keep it!', 'bad');
+    if (o.shop) return this.toast('The market stall is where you shop, so it can\'t be destroyed. Use Move to put it somewhere else.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep!', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Some animals live here. Move them first by building another home.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o);
@@ -567,6 +567,7 @@ class Game {
     if (item === 'goldenEgg') this.toast(`${a.name} laid a golden egg! ✨`, 'good');
   }
   endDay() {
+    this.fishing = null; if (this.player.act) this.player.act = null;
     // overnight: animals settle up, babies arrive, a new day begins at 6:00
     const report = { babies: [], produce: 0, unhappy: [] };
     const owned = this.animals.filter((a) => !a.wild);

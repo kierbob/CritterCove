@@ -160,6 +160,7 @@ Object.assign(Game.prototype, {
   roomOf(house) { if (!house._room) house._room = new Room(this, house); return house._room; },
   scene() { return this.inside || this; },
   enterHouse(house) {
+    this.fishing = null; this.player.act = null;
     const room = this.roomOf(house); this.inside = room; this.outsidePos = [this.player.x, this.player.y];
     this.player.x = room.door[0] + 0.5; this.player.y = room.door[1] + 0.6; this.player.dir = 'up'; this.player.path = null;
     this.sfx('door'); this.emit('scene', room);
