@@ -122,7 +122,7 @@ class Animal {
     const W = game.world;
     if (this.sk === 'frog') {
       const r = Math.random();
-      if (r < 0.3) { this.state = 'croak'; this.anim = 0; this.st = 1.6; if (game.near(this, 9)) game.sfx('croak'); }
+      if (r < 0.3) { this.state = 'croak'; this.anim = 0; this.st = 1.6; if (game.near(this, 6)) game.sfx('croak'); }
       else if (r < 0.45) { this.state = 'snack'; this.anim = 0; this.st = 2.1; }
       return;
     }

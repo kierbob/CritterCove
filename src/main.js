@@ -50,11 +50,15 @@
   });
   let fading = 0, fadeCb = null, outZoom = 3;
   // player settings, kept between visits
-  const settings = Object.assign({ vol: 0.7, birds: true, tips: true, zoom: 0 }, store.get('critter-cove-settings') || {});
-  const saveSettings = () => { store.set('critter-cove-settings', settings); audio.setVolume(settings.vol); };
-  audio.setVolume(settings.vol);
+  const settings = Object.assign({ vol: 0.7, music: 0.5, birds: true, tips: true, zoom: 0 }, store.get('critter-cove-settings') || {});
+  const saveSettings = () => { store.set('critter-cove-settings', settings); audio.setVolume(settings.vol); audio.setMusic(settings.music); };
+  audio.setVolume(settings.vol); audio.setMusic(settings.music);
+  // browsers only allow sound after the first click or key press
+  for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => audio.unlock(), { capture: true });
   function showSettings() {
     const vol = $('#sVol'), z = $('#sZoom');
+    const mu = $('#sMusic'); mu.value = Math.round(settings.music * 100); $('#sMusicV').textContent = mu.value + '%';
+    mu.oninput = () => { settings.music = mu.value / 100; $('#sMusicV').textContent = mu.value + '%'; saveSettings(); };
     vol.value = Math.round(settings.vol * 100); $('#sVolV').textContent = vol.value + '%';
     vol.oninput = () => { settings.vol = vol.value / 100; $('#sVolV').textContent = vol.value + '%'; saveSettings(); audio.play('pop'); };
     $('#sBirds').checked = settings.birds; $('#sBirds').onchange = () => { settings.birds = $('#sBirds').checked; saveSettings(); };
@@ -244,6 +248,7 @@
     else if (game.inside) roomCam(false);
     else if (!(build && build.on)) { R.cam.x += (tgt.x - R.cam.x) * Math.min(1, dt * 5); R.cam.y += (tgt.y - 0.5 - R.cam.y) * Math.min(1, dt * 5); }
     draw(dt);
+    if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) audio.setMood(!game.started ? 'menu' : game.isNight() ? 'night' : 'day');
     if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { const ns = nearSoil(); if (ns !== ui.nearSoil) { ui.nearSoil = ns; ui.seedBar(); } ui.hud(); if (Math.floor(time) !== Math.floor(time - dt)) ui.needs(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
     requestAnimationFrame(frame);
   }
@@ -541,7 +546,7 @@
 // ----------------------------------------------------------------- sound
 // small synthesised blips (no audio files needed)
 function makeAudio() {
-  let ac = null, master = null, avVol = 0.7;
+  let ac = null, master = null, avVol = 0.7, music = null, muVol = 0.5, lastCroak = -99;
   const tone = (f, t0, dur, type = 'sine', vol = 0.15, slide = 0) => {
     const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t0 + dur);
@@ -552,7 +557,7 @@ function makeAudio() {
     pickup: (t) => { tone(880, t, 0.08, 'triangle'); tone(1320, t + 0.06, 0.12, 'triangle'); },
     coin: (t) => { [988, 1319, 1568, 1976].forEach((f, i) => tone(f, t + i * 0.06, 0.14, 'square', 0.05)); },
     pet: (t) => { tone(520, t, 0.1, 'sine', 0.12, 260); tone(780, t + 0.08, 0.14, 'sine', 0.1, 200); },
-    croak: (t) => { tone(140, t, 0.12, 'sawtooth', 0.05, -40); tone(120, t + 0.15, 0.14, 'sawtooth', 0.05, -40); },
+    croak: (t) => { tone(420, t, 0.07, 'sine', 0.04, -160); tone(380, t + 0.11, 0.08, 'sine', 0.035, -160); },   // a tiny 'ribbit'
     place: (t) => { tone(300, t, 0.08, 'triangle', 0.12, -120); tone(450, t + 0.05, 0.08, 'triangle', 0.08); },
     pop: (t) => tone(600, t, 0.08, 'sine', 0.12, -400),
     chop: (t) => { tone(180, t, 0.07, 'square', 0.08, -60); tone(120, t + 0.02, 0.1, 'triangle', 0.1, -40); },
@@ -568,9 +573,64 @@ function makeAudio() {
     splash: (t) => { for (let i = 0; i < 6; i++) tone(900 - i * 90, t + i * 0.025, 0.05, 'sine', 0.05); },
   };
   return {
-    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.85 * avVol; master.connect(ac.destination); } catch (e) { ac = null; } },
+    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.85 * avVol; master.connect(ac.destination); music = makeMusic(ac, muVol); } catch (e) { ac = null; } },
+    setMusic(v) { muVol = v; if (music) music.setVolume(v); },
+    setMood(m) { if (music) music.mood = m; },
     setVolume(v) { avVol = v; if (master) master.gain.value = 0.85 * v; },
     muted: false,
-    play(n) { if (!ac || !S[n] || this.muted) return; S[n](ac.currentTime + 0.01); },
+    play(n) {
+      if (!ac || !S[n] || this.muted) return;
+      if (n === 'croak') { if (ac.currentTime - lastCroak < 14) return; lastCroak = ac.currentTime; }   // frogs, but not too often
+      S[n](ac.currentTime + 0.01);
+    },
   };
+}
+
+// Gentle background music, made on the fly: a soft pad, a music-box melody
+// and a little bass, wandering through cosy chord progressions.
+function makeMusic(ac, vol) {
+  const out = ac.createGain(); out.gain.value = vol * 0.55; out.connect(ac.destination);
+  // a soft echo makes the music box sparkle
+  const echo = ac.createDelay(1); echo.delayTime.value = 0.42; const fb = ac.createGain(); fb.gain.value = 0.32; const wet = ac.createGain(); wet.gain.value = 0.35;
+  echo.connect(fb); fb.connect(echo); echo.connect(wet); wet.connect(out);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out); lp.connect(echo);
+  const hz = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  const note = (n, t, dur, type, v, att = 0.01) => {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = hz(n);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(lp); o.start(t); o.stop(t + dur + 0.05);
+  };
+  // chords as MIDI notes (C major / A minor family)
+  const C = [48, 52, 55], G = [43, 47, 50], Am = [45, 48, 52], F = [41, 45, 48], Em = [40, 43, 47], Dm = [38, 41, 45];
+  const SONGS = [[C, G, Am, F], [F, G, Em, Am], [C, Am, F, G], [Am, F, C, G], [F, C, Dm, G]];
+  const SCALE = [0, 2, 4, 7, 9];   // pentatonic, always sweet
+  const M = { mood: 'day', song: 0, bar: 0, beat: 0, next: ac.currentTime + 0.5, setVolume(v) { out.gain.setTargetAtTime(v * 0.55, ac.currentTime, 0.3); } };
+  let last = 72;
+  const tick = () => {
+    const night = M.mood === 'night', menu = M.mood === 'menu';
+    const bpm = night ? 58 : 72, beat = 60 / bpm;
+    while (M.next < ac.currentTime + 0.4) {
+      const t = M.next, chord = SONGS[M.song][M.bar % 4];
+      if (M.beat === 0) {
+        // pad: the whole chord, softly, for the bar
+        for (const n of chord) note(n + 12, t, beat * 4.2, 'triangle', night ? 0.022 : 0.028, 0.6);
+        note(chord[0] - 12, t, beat * 1.8, 'sine', 0.07, 0.03);                     // bass
+      }
+      if (M.beat === 2 && !night) note(chord[0] - 5, t, beat * 1.6, 'sine', 0.05, 0.03);
+      // music box: wander up and down the pentatonic scale, resting now and then
+      for (let half = 0; half < 2; half++) {
+        if (Math.random() < (night ? 0.28 : menu ? 0.5 : 0.45)) {
+          const opts = []; for (let o = 60; o <= 84; o += 12) for (const s of SCALE) opts.push(o + s + (chord === Am || chord === Em || chord === Dm ? -3 : 0));
+          const near = opts.filter((n) => Math.abs(n - last) <= 5 && n >= 64 && n <= 84);
+          last = near.length ? near[Math.floor(Math.random() * near.length)] : 72;
+          if (M.beat === 0 && half === 0) last = chord[Math.floor(Math.random() * 3)] + 24;   // land on the chord
+          note(last, t + half * beat / 2, night ? 1.6 : 1.1, 'sine', night ? 0.05 : 0.06, 0.005);
+        }
+      }
+      M.beat++; M.next += beat;
+      if (M.beat >= 4) { M.beat = 0; M.bar++; if (M.bar % 16 === 0) M.song = Math.floor(Math.random() * SONGS.length); }
+    }
+  };
+  setInterval(() => { if (ac.state === 'running') tick(); }, 120);
+  return M;
 }
