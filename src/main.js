@@ -31,17 +31,35 @@
     tut = makeTutorial(game); ui.tutorial(tut);
     game.on('undo', () => ui.undoState());
     $('#bUndo').onclick = () => { game.undo(); ui.hud(); };
-    $('#bMenu').onclick = () => ask('Save and go back to the main menu?', { yes: 'Main menu', no: 'Keep playing' }).then((ok) => { if (ok) { game.save(); location.reload(); } });
+    // pause menu: resume, settings, back to the main menu
+    const openPause = () => { $('#pMain').classList.remove('hidden'); $('#pSet').classList.add('hidden'); $('#pTag').textContent = `${game.farmName} · Day ${game.day}`; $('#pause').classList.remove('hidden'); };
+    $('#bMenu').onclick = openPause; app.pause = openPause;
+    $('#pResume').onclick = () => $('#pause').classList.add('hidden');
+    $('#pQuit').onclick = () => { game.save(); location.reload(); };
+    $('#pSettings').onclick = () => { $('#pMain').classList.add('hidden'); $('#pSet').classList.remove('hidden'); showSettings(); };
+    $('#pBack').onclick = () => { $('#pSet').classList.add('hidden'); $('#pMain').classList.remove('hidden'); };
     addEventListener('pagehide', () => game && game.started && game.save());
-    $('#bSound').onclick = () => { audio.muted = !audio.muted; $('#bSound').lastChild.textContent = audio.muted ? 'Sound off' : 'Sound on'; };
     for (const id of ['#hud', '#tools', '#hint']) $(id).classList.remove('hidden');
     ui.undoState();
-    R.cam.x = game.player.x; R.cam.y = game.player.y; R.cam.z = innerWidth < 700 ? 2.5 : 3; outZoom = R.cam.z; if (game.inside) roomCam(true);
+    R.cam.x = game.player.x; R.cam.y = game.player.y; R.cam.z = settings.zoom || (innerWidth < 700 ? 2.5 : 3); outZoom = R.cam.z; if (game.inside) roomCam(true);
     ui.hud(); hint();
     setInterval(() => game && game.save(), 20000);
     audio.unlock();
   });
   let fading = 0, fadeCb = null, outZoom = 3;
+  // player settings, kept between visits
+  const settings = Object.assign({ vol: 0.7, birds: true, tips: true, zoom: 0 }, store.get('critter-cove-settings') || {});
+  const saveSettings = () => { store.set('critter-cove-settings', settings); audio.setVolume(settings.vol); };
+  audio.setVolume(settings.vol);
+  function showSettings() {
+    const vol = $('#sVol'), z = $('#sZoom');
+    vol.value = Math.round(settings.vol * 100); $('#sVolV').textContent = vol.value + '%';
+    vol.oninput = () => { settings.vol = vol.value / 100; $('#sVolV').textContent = vol.value + '%'; saveSettings(); audio.play('pop'); };
+    $('#sBirds').checked = settings.birds; $('#sBirds').onchange = () => { settings.birds = $('#sBirds').checked; saveSettings(); };
+    $('#sTips').checked = settings.tips; $('#sTips').onchange = () => { settings.tips = $('#sTips').checked; saveSettings(); hint(); };
+    z.value = settings.zoom || R.cam.z; $('#sZoomV').textContent = (+z.value).toFixed(1) + '×';
+    z.oninput = () => { settings.zoom = +z.value; $('#sZoomV').textContent = (+z.value).toFixed(1) + '×'; if (!game.inside) R.cam.z = settings.zoom; outZoom = settings.zoom; saveSettings(); };
+  }
   function leaveHouse() { if (fading || !game.inside) return; fade(() => { game.exitHouse(); R.cam.z = outZoom; R.cam.x = game.player.x; R.cam.y = game.player.y; }); }
   // inside, the camera frames the whole room
   function roomCam(snap) {
@@ -59,6 +77,7 @@
   function hint() {
     if (!ui) return;
     const msgs = ['WASD or click to walk · click animals to pat them', 'Click trees, rocks and flowers to gather · click water to fish', 'Visit the market stall to shop and sell · Ctrl+Z undoes a build · scroll to zoom', 'Click your field to plant · click seedlings to water them', 'Pat wild critters, then adopt them with a critter snack', 'Click your house to go inside and decorate · press B to build'];
+    $('#hint').classList.toggle('hidden', !settings.tips);
     $('#hint').textContent = msgs[Math.floor(performance.now() / 9000) % msgs.length];
   }
 
@@ -73,7 +92,7 @@
     const modalOpen = document.querySelector('.modal:not(.hidden)');
     if (e.code === 'KeyB' && !modalOpen) { build.toggle(); e.preventDefault(); return; }
     if (build.on && !modalOpen && build.key(e)) { e.preventDefault(); return; }
-    if (e.code === 'Escape') { app.select(null); for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); }
+    if (e.code === 'Escape') { if (modalOpen) { for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); } else if (sel) app.select(null); else if (app.pause) app.pause(); }
   });
   addEventListener('keyup', (e) => { if (keymap[e.code]) input[keymap[e.code]] = false; });
   addEventListener('blur', () => { for (const k in input) input[k] = false; });
@@ -146,6 +165,14 @@
     }
     if (r.inb(tx, ty)) walkTo(wx, wy, 0, null);
   }
+  // is the farmer standing at (or hovering over) the field? then show the seed picker
+  function nearSoil() {
+    if (!game.started || game.inside || (build && build.on)) return false;
+    if (hover && hover.soil) return true;
+    const W = game.world, px = Math.floor(game.player.x), py = Math.floor(game.player.y);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (W.inb(px + dx, py + dy) && W.soil[W.idx(px + dx, py + dy)]) return true;
+    return false;
+  }
   // a soil tile under the cursor (tall crops can be clicked on their leaves too)
   function soilAt(wx, wy) {
     const W = game.world, tx = Math.floor(wx), ty = Math.floor(wy), S = (x, y) => W.inb(x, y) && W.soil[W.idx(x, y)];
@@ -206,7 +233,7 @@
       if (build.on && !game.inside) { const sp = dt * 14 / R.cam.z * 3; R.cam.x += ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * sp; R.cam.y += ((input.down ? 1 : 0) - (input.up ? 1 : 0)) * sp; }
       game.update(dt);
       if (tut) tut.update();
-      if (!game.isNight() && game.weather.rain < 0.3 && Math.random() < dt * 0.12) audio.play('chirp');
+      if (settings.birds && !game.isNight() && game.weather.rain < 0.3 && Math.random() < dt * 0.12) audio.play('chirp');
       if (game.time >= 24 * 60 - 1 && !fading) fade(() => {});
     }
     // camera follows the player (on the menu it drifts along the beach)
@@ -215,7 +242,7 @@
     else if (game.inside) roomCam(false);
     else if (!(build && build.on)) { R.cam.x += (tgt.x - R.cam.x) * Math.min(1, dt * 5); R.cam.y += (tgt.y - 0.5 - R.cam.y) * Math.min(1, dt * 5); }
     draw(dt);
-    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { ui.hud(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
+    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { const ns = nearSoil(); if (ns !== ui.nearSoil) { ui.nearSoil = ns; ui.seedBar(); } ui.hud(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
     requestAnimationFrame(frame);
   }
 
@@ -336,6 +363,7 @@
     }
     if (sel) { const sx = R.sx(sel.x), sy = R.sy(sel.y); g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 2 * R.dpr; g.beginPath(); g.ellipse(sx, sy, 7 * R.Z, 3 * R.Z, 0, 0, Math.PI * 2); g.stroke(); }
     if (tut && tut.active() && game.started) { const T = tut.target(); if (T) drawArrow(T.x, T.y); }
+    else if (ui && ui.questArrow && GOALS[game.goal] && GOALS[game.goal].target) { const T = GOALS[game.goal].target(game); if (T) drawArrow(T.x, T.y); }
     if (fading) { g.fillStyle = `rgba(0,0,0,${fading < 1 ? fading : 2 - fading})`; g.fillRect(0, 0, R.W, R.H); }
   }
   function drawInside(dt) {
@@ -511,7 +539,7 @@
 // ----------------------------------------------------------------- sound
 // small synthesised blips (no audio files needed)
 function makeAudio() {
-  let ac = null, master = null;
+  let ac = null, master = null, avVol = 0.7;
   const tone = (f, t0, dur, type = 'sine', vol = 0.15, slide = 0) => {
     const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t0 + dur);
@@ -538,7 +566,8 @@ function makeAudio() {
     splash: (t) => { for (let i = 0; i < 6; i++) tone(900 - i * 90, t + i * 0.025, 0.05, 'sine', 0.05); },
   };
   return {
-    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.6; master.connect(ac.destination); } catch (e) { ac = null; } },
+    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.85 * avVol; master.connect(ac.destination); } catch (e) { ac = null; } },
+    setVolume(v) { avVol = v; if (master) master.gain.value = 0.85 * v; },
     muted: false,
     play(n) { if (!ac || !S[n] || this.muted) return; S[n](ac.currentTime + 0.01); },
   };

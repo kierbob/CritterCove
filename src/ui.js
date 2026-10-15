@@ -88,9 +88,10 @@ function installUI(game, app) {
   });
   // ---- tool buttons
   const toolIcon = (sel, key, cx, cy) => { const c = $(sel + ' canvas'), g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(IMG[key], cx * 16, cy * 16, 16, 16, 0, 0, 16, 16); };
-  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bSound', P.other, 2, 0); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
+  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
   $('#bShop').onclick = () => ui.openShop('animals');
   $('#bDex').onclick = () => ui.openDex();
+  $('#bQuest').onclick = () => ui.openQuests();
   $('#bBag').onclick = () => ui.openShop('sell');
   for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('.modal').classList.add('hidden');
   for (const m of document.querySelectorAll('.modal')) m.addEventListener('pointerdown', (e) => { if (e.target === m) m.classList.add('hidden'); });
@@ -105,10 +106,49 @@ function installUI(game, app) {
     const b = game.beauty(), stars = b < 20 ? 1 : b < 60 ? 2 : b < 120 ? 3 : b < 220 ? 4 : 5;
     $('#hBeauty').innerHTML = `Farm beauty <span style="color:var(--gold);letter-spacing:1px">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>`;
     $('#hCoins').textContent = game.coins;
-    const G = GOALS[game.goal];
-    $('#hGoal').classList.toggle('hidden', game.tut < TUTORIAL.length);
-    $('#hGoal').innerHTML = G ? `<b>Goal:</b> ${G.text} <span class="price"><span class="coin"></span>${G.reward}</span>` : '<b>All goals done!</b> Keep collecting colours.';
+    ui.quest();
   };
+  // ---- the current quest: what to do, how far along, how to do it
+  ui.questArrow = false;
+  ui.quest = () => {
+    const box = $('#hGoal'), G = GOALS[game.goal];
+    box.classList.toggle('hidden', game.tut < TUTORIAL.length);
+    if (!G) { if (box.dataset.k !== 'done') { box.dataset.k = 'done'; box.innerHTML = '<div class="qhead"><b>All quests done! 🎉</b></div><div class="qhow">Keep collecting colours and making your farm pretty.</div><div class="qbtns"><button class="btn mini" data-q="all">Quest book</button></div>'; } return; }
+    if (box.dataset.k !== String(game.goal)) {
+      box.dataset.k = String(game.goal); ui.questArrow = false;
+      box.innerHTML = `<div class="qhead"><b>Quest ${game.goal + 1} of ${GOALS.length}</b><span class="price"><span class="coin"></span>${G.reward}</span></div>
+        <div class="qtext px">${G.text}</div><div class="qbar"><i></i><span></span></div><div class="qhow">${G.how}</div>
+        <div class="qbtns">${G.target ? '<button class="btn mini" data-q="show">📍 Show me</button>' : ''}<button class="btn mini" data-q="all">Quest book</button></div>`;
+    }
+    const [a, b] = G.prog(game), f = clamp(a / b, 0, 1);
+    box.querySelector('.qbar i').style.width = `${Math.round(f * 100)}%`;
+    box.querySelector('.qbar span').textContent = b >= 100 && game.goal === GOALS.length - 1 ? `${Math.floor(a)}%` : `${Math.min(Math.floor(a), b).toLocaleString()} / ${b.toLocaleString()}`;
+    const sb = box.querySelector('[data-q=show]'); if (sb) sb.textContent = ui.questArrow ? '📍 Hide arrow' : '📍 Show me';
+  };
+  $('#hGoal').addEventListener('click', (e) => {
+    const q = e.target.closest('[data-q]'); if (!q) return;
+    if (q.dataset.q === 'show') { ui.questArrow = !ui.questArrow; ui.quest(); }
+    else ui.openQuests();
+  });
+  ui.openQuests = () => {
+    const body = $('#qBody'); body.innerHTML = '';
+    GOALS.forEach((G, i) => {
+      const st = i < game.goal ? 'done' : i === game.goal ? 'now' : 'later', row = el('div', 'qrow ' + st);
+      const [a, b] = G.prog(game);
+      row.appendChild(el('div', 'qn px', st === 'done' ? '✔' : String(i + 1)));
+      row.appendChild(el('div', '', `<b>${G.text}</b><div class="qhow">${st === 'later' ? 'Unlocks after the quest before it.' : st === 'done' ? 'Done!' : G.how + ` <b>(${Math.min(Math.floor(a), b)} / ${b})</b>`}</div>`));
+      row.appendChild(el('div', 'price', `<span class="coin"></span>${G.reward}`));
+      body.appendChild(row);
+    });
+    $('#qTag').textContent = `${game.goal} of ${GOALS.length} quests done`;
+    $('#quests').classList.remove('hidden');
+    const cur = body.querySelector('.now'); if (cur) cur.scrollIntoView({ block: 'center' });
+  };
+  game.on('quest', ({ G, next }) => {
+    const d = $('#qDone'); d.innerHTML = `<div class="px big">✨ Quest complete! ✨</div><div>${G.text} · <span class="price"><span class="coin"></span>+${G.reward}</span></div>${next ? `<div class="nx">Next: <b>${next.text}</b></div>` : '<div class="nx"><b>That was the last one. You did it!</b></div>'}`;
+    d.classList.remove('hidden'); d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    clearTimeout(ui._qd); ui._qd = setTimeout(() => d.classList.add('hidden'), 4200);
+  });
 
   // ---- animal card
   ui.card = (a) => {
@@ -239,7 +279,7 @@ function installUI(game, app) {
   // the seed you'll plant next, with a picker
   ui.seedBar = () => {
     const bar = $('#seedBar'), pick = $('#seedPick'), have = Object.keys(game.seeds).filter((k) => game.seeds[k] > 0);
-    const show = game.started !== false && have.length && !game.inside;
+    const show = game.started !== false && have.length && !game.inside && ui.nearSoil;
     bar.classList.toggle('hidden', !show); if (!show) { pick.classList.add('hidden'); return; }
     if (!(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
     const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length;

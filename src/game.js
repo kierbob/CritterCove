@@ -88,37 +88,74 @@ def('campfire', { name: 'Campfire', cat: 'deco', price: 20, beauty: 2, light: tr
 const TALL = { house: 4, coop: 4, barn: 5, shed: 3, windmill: 5, silo: 3, stall: 1, fountain: 1, well: 1 };
 // little goals that guide a new farmer, each with a coin reward
 const roomItems = (g) => { const h = g.things.find((o) => o.id === 'house'); return h && h.room ? h.room.items.length : 0; };
+// helpers for quest arrows: where to look
+const qThing = (id) => (g) => { const o = g.things.find((q) => id === 'stall' ? q.shop : q.id === id); return o && { x: o.x + o.w / 2, y: o.y - (TALL[o.id] || 1) + 0.6 }; };
+const qWild = (sk) => (g) => { let b = null, bd = 1e9; for (const a of g.animals) if (a.wild && a.sk === sk) { const d = dist(a.x, a.y, g.player.x, g.player.y); if (d < bd) { bd = d; b = a; } } return b && { x: b.x, y: b.y - 1.2 }; };
+const qSoil = (pred) => (g) => { const W = g.world; let b = null, bd = 1e9; for (let i = 0; i < W.soil.length; i++) if (W.soil[i] && pred(g, i)) { const x = i % W.W, y = (i / W.W) | 0, d = dist(x, y, g.player.x, g.player.y); if (d < bd) { bd = d; b = { x: x + 0.5, y: y - 0.3 }; } } return b; };
+const dexN = (g) => Object.values(g.dex).reduce((s, a) => s + a.length, 0);
+const ADOPTABLE = ['frog', 'mouse', 'swan', 'capybara'];
+// the quest line: each quest says how to do it, tracks progress, and can point the way
 const GOALS = [
-  { text: 'Earn 200 coins from selling', reward: 25, done: (g) => (g.stats.earned || 0) >= 200 },
-  { text: 'Plant 6 seeds in your field', reward: 15, done: (g) => (g.stats.planted || 0) >= 6 },
-  { text: 'Harvest 5 crops', reward: 25, done: (g) => (g.stats.harvested || 0) >= 5 },
-  { text: 'Catch 5 fish', reward: 20, done: (g) => g.stats.fish >= 5 },
-  { text: 'Make friends with a wild frog', reward: 20, done: (g) => (g.dex.frog || []).length >= 1 },
-  { text: 'Buy a duck', reward: 20, done: (g) => g.animals.some((a) => a.sk === 'duck') },
-  { text: 'Dig a pond of 6 tiles (build mode, Decor)', reward: 30, done: (g) => (g.stats.ponds || 0) >= 6 },
-  { text: 'Adopt a wild critter (pat it, then give it a snack)', reward: 40, done: (g) => (g.stats.adopted || 0) >= 1 },
-  { text: 'Plant 5 flowers around your farm', reward: 15, done: (g) => g.things.filter((o) => o.id === 'flower' || o.id === 'pot').length >= 13 },
-  { text: 'Set up a beehive near some flowers', reward: 30, done: (g) => g.things.some((o) => o.id === 'beehive') },
-  { text: 'Collect 3 jars of honey', reward: 40, done: (g) => (g.stats.honey || 0) >= 3 },
-  { text: 'Decorate your house with 4 new things', reward: 30, done: (g) => roomItems(g) >= 9 },
-  { text: 'Build a big barn', reward: 60, done: (g) => g.things.some((o) => o.id === 'barn') },
-  { text: 'Welcome a sheep or a cow', reward: 40, done: (g) => g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') },
-  { text: 'Spot 3 colours of butterfly', reward: 30, done: (g) => (g.dex.butterfly || []).length >= 3 },
-  { text: 'Have a baby animal born', reward: 50, done: (g) => g.stats.born >= 1 },
-  { text: 'Harvest 40 crops', reward: 60, done: (g) => (g.stats.harvested || 0) >= 40 },
-  { text: 'Grow a pumpkin or a watermelon', reward: 80, done: (g) => (g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0) >= 1 },
-  { text: 'Adopt a capybara', reward: 80, done: (g) => g.animals.some((a) => a.adopted && a.sk === 'capybara') },
-  { text: 'Reach 3 stars of farm beauty', reward: 80, done: (g) => g.beauty() >= 60 },
-  { text: 'Expand your house', reward: 60, done: (g) => g.things.some((o) => o.id === 'house' && o.room && o.room.grown) },
-  { text: 'Find 20 colours for your Critterdex', reward: 100, done: (g) => Object.values(g.dex).reduce((s, a) => s + a.length, 0) >= 20 },
-  { text: 'Find a rare colour ✨', reward: 150, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.some((c) => SPECIES[sk].colors[c].rare >= 2)) },
-  { text: 'Earn 3,000 coins in total', reward: 150, done: (g) => (g.stats.earned || 0) >= 3000 },
-  { text: 'Adopt a frog, a mouse, a swan and a capybara', reward: 200, done: (g) => ['frog', 'mouse', 'swan', 'capybara'].every((sk) => g.animals.some((a) => a.adopted && a.sk === sk)) },
-  { text: 'Reach 4 stars of farm beauty', reward: 200, done: (g) => g.beauty() >= 120 },
-  { text: 'Find 5 colours of one farm animal', reward: 250, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.length >= 5 && FARM_SPECIES.includes(sk)) },
-  { text: 'Earn 10,000 coins in total', reward: 400, done: (g) => (g.stats.earned || 0) >= 10000 },
-  { text: 'Complete a whole Critterdex page', reward: 500, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.length >= SPECIES[sk].colors.length && FARM_SPECIES.includes(sk)) },
+  { text: 'Earn 200 coins from selling', reward: 25, prog: (g) => [g.stats.earned || 0, 200], target: qThing('stall'),
+    how: 'Gather flowers, eggs, fish or wood, then sell them at the market stall.' },
+  { text: 'Plant 6 seeds in your field', reward: 15, prog: (g) => [g.stats.planted || 0, 6], target: qSoil((g, i) => !g.crops.has(i)),
+    how: 'Click the brown soil to plant. More seeds are in the Seeds tab at the market.' },
+  { text: 'Harvest 5 crops', reward: 25, prog: (g) => [g.stats.harvested || 0, 5], target: qSoil((g, i) => g.crops.has(i)),
+    how: 'Water your seedlings every day. When a crop sparkles, click it to harvest.' },
+  { text: 'Catch 5 fish', reward: 20, prog: (g) => [g.stats.fish, 5], target: (g) => { let b = null, bd = 1e9; for (const s of g.fishSpots) { const d = dist(s.x, s.y, g.player.x, g.player.y); if (d < bd) { bd = d; b = s; } } return b && { x: b.x + 0.5, y: b.y - 0.2 }; },
+    how: 'Click the water to cast your line, then click again as soon as you see "!".' },
+  { text: 'Make friends with a wild frog', reward: 20, prog: (g) => [(g.dex.frog || []).length, 1], target: qWild('frog'),
+    how: 'Frogs sit beside ponds. Walk up and click one to give it a pat.' },
+  { text: 'Buy a duck', reward: 20, prog: (g) => [g.animals.some((a) => a.sk === 'duck') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Ducks are in the Animals tab at the market stall. They live in your coop.' },
+  { text: 'Dig a pond of 6 tiles', reward: 30, prog: (g) => [g.stats.ponds || 0, 6],
+    how: 'Press B, open "Buy more", get Pond water from the Decor tab, then drag across the grass.' },
+  { text: 'Adopt a wild critter', reward: 40, prog: (g) => [g.stats.adopted || 0, 1], target: qWild('frog'),
+    how: 'Buy a critter snack (Animals tab), pat a wild frog, then press Adopt on its card.' },
+  { text: 'Plant 5 flowers around your farm', reward: 15, prog: (g) => [Math.max(0, g.things.filter((o) => o.id === 'flower' || o.id === 'pot').length - 8), 5],
+    how: 'Press B and place Flowers from your bag. More flowers are in the Decor tab.' },
+  { text: 'Set up a beehive', reward: 30, prog: (g) => [g.things.some((o) => o.id === 'beehive') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Buy a Beehive in the Farm tab and place it near at least 4 flowers.' },
+  { text: 'Collect 3 jars of honey', reward: 40, prog: (g) => [g.stats.honey || 0, 3], target: qThing('beehive'),
+    how: 'A hive with 4+ flowers nearby makes a jar each morning. Click the hive to collect it.' },
+  { text: 'Decorate your house with 4 new things', reward: 30, prog: (g) => [Math.max(0, roomItems(g) - 5), 4], target: qThing('house'),
+    how: 'Buy furniture in the Home tab, click your house to go inside, then press B.' },
+  { text: 'Build a big barn', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'barn') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Barns are in the Buildings tab. Place it with B, with space in front of the door.' },
+  { text: 'Welcome a sheep or a cow', reward: 40, prog: (g) => [g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Buy one from the Animals tab. Give the barn its own hay feeder and water trough.' },
+  { text: 'Spot 3 colours of butterfly', reward: 30, prog: (g) => [(g.dex.butterfly || []).length, 3], target: (g) => { const b = (g.bugs || [])[0]; return b && { x: b.x, y: b.y - 1.6 }; },
+    how: 'Butterflies visit pretty farms on dry days. Click one to take a closer look.' },
+  { text: 'Have a baby animal born', reward: 50, prog: (g) => [g.stats.born || 0, 1],
+    how: 'Feed, water and pat two animals of the same kind every day. Happy pairs have babies if there\'s room at home.' },
+  { text: 'Harvest 40 crops', reward: 60, prog: (g) => [g.stats.harvested || 0, 40], target: qSoil((g, i) => g.crops.has(i) && g.crops.get(i).g >= CROP[g.crops.get(i).c].days),
+    how: 'Bigger fields mean bigger harvests. Farm soil is in the Farm tab.' },
+  { text: 'Grow a pumpkin or a watermelon', reward: 80, prog: (g) => [(g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0), 1],
+    how: 'Their seeds arrive at the market on day 7. They need 6 watered days to grow.' },
+  { text: 'Adopt a capybara', reward: 80, prog: (g) => [g.animals.some((a) => a.adopted && a.sk === 'capybara') ? 1 : 0, 1], target: qWild('capybara'),
+    how: 'Capybaras need a deep pond: dig one at least 3×3. Pat one in the wild, then adopt it.' },
+  { text: 'Reach 3 stars of farm beauty', reward: 80, prog: (g) => [g.beauty(), 60],
+    how: 'Flowers, ponds, lamps, benches and buildings all make your farm prettier.' },
+  { text: 'Expand your house', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'house' && o.room && o.room.grown) ? 1 : 0, 1], target: qThing('house'),
+    how: 'Go inside, press B, and click "Expand room".' },
+  { text: 'Find 20 colours for your Critterdex', reward: 100, prog: (g) => [dexN(g), 20],
+    how: 'New animals, babies, wild critters and butterflies all add colours.' },
+  { text: 'Find a rare colour ✨', reward: 150, prog: (g) => [Object.entries(g.dex).some(([sk, cs]) => cs.some((c) => SPECIES[sk].colors[c].rare >= 2)) ? 1 : 0, 1],
+    how: 'Rare colours come from babies, lucky butterflies and special wild critters.' },
+  { text: 'Earn 3,000 coins in total', reward: 150, prog: (g) => [g.stats.earned || 0, 3000],
+    how: 'Honey, milk, wool and big crops sell for the most.' },
+  { text: 'Adopt a frog, a mouse, a swan and a capybara', reward: 200, prog: (g) => [ADOPTABLE.filter((sk) => g.animals.some((a) => a.adopted && a.sk === sk)).length, 4],
+    how: 'Mice need a hay bale, swans a pond of 6+ tiles, capybaras a deep pond.' },
+  { text: 'Reach 4 stars of farm beauty', reward: 200, prog: (g) => [g.beauty(), 120],
+    how: 'Keep decorating! Fountains and windmills are extra pretty.' },
+  { text: 'Find 5 colours of one farm animal', reward: 250, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length)), 5],
+    how: 'Buy a few of one kind and let them have babies. The market sells the common colours.' },
+  { text: 'Earn 10,000 coins in total', reward: 400, prog: (g) => [g.stats.earned || 0, 10000],
+    how: 'You\'re a farming pro now. Keep it up!' },
+  { text: 'Complete a whole Critterdex page', reward: 500, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length / SPECIES[sk].colors.length)) * 100 | 0, 100],
+    how: 'Collect every colour of one animal. Horses (5) and ducks (5) have the smallest pages.' },
 ];
+for (const G of GOALS) G.done = (g) => { const [a, b] = G.prog(g); return a >= b; };
 const CATS = [['animals', 'Animals'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
 
 // ---------------------------------------------------------------- game
@@ -464,7 +501,7 @@ class Game {
     this.goalT += dt;
     if (this.goalT > 0.5 && this.started && this.tut >= TUTORIAL.length) {
       this.goalT = 0; const G = GOALS[this.goal];
-      if (G && G.done(this)) { this.coins += G.reward; this.goal++; this.toast(`Goal done: ${G.text}! +${G.reward} coins`, 'good'); this.sfx('coin'); this.emit('changed'); }
+      if (G && G.done(this)) { this.coins += G.reward; this.goal++; this.emit('quest', { G, next: GOALS[this.goal] }); this.sfx('catch'); this.heart(this.player.x, this.player.y - 1.6); this.emit('changed'); }
     }
     this.time += dt / this.DAY_SEC * 18 * 60;
     if (this.time >= 24 * 60) this.endDay();

@@ -33,7 +33,33 @@ button { font: inherit; color: inherit; }
 #hud .farm { font-size: 18px; display: flex; justify-content: space-between; gap: 14px; align-items: center; }
 #hud .coins { display: inline-flex; gap: 6px; align-items: center; background: var(--paper2); border: 2px solid var(--line); border-radius: 999px; padding: 1px 10px 1px 4px; }
 #hud .row { display: flex; gap: 10px; align-items: center; color: var(--ink2); }
-#hud .goal { margin-top: 4px; padding-top: 4px; border-top: 2px dashed #d7b98d; max-width: 260px; font-size: 13px; }
+#hud .goal { margin-top: 4px; padding-top: 6px; border-top: 2px dashed #d7b98d; width: 270px; font-size: 13px; display: grid; gap: 4px; }
+#hud .goal .qhead { display: flex; justify-content: space-between; align-items: center; color: var(--ink2); font-size: 12px; }
+#hud .goal .qtext { font-size: 17px; line-height: 1.15; color: var(--ink); }
+.qbar { position: relative; height: 16px; background: #f1e1bf; border: 2px solid #c9a56f; border-radius: 9px; overflow: hidden; }
+.qbar i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(#9fe07a, #6fb83f); transition: width .4s; }
+.qbar span { position: relative; display: block; text-align: center; font-size: 11px; line-height: 12px; font-weight: 800; color: var(--ink); }
+.qhow { color: var(--ink2); font-size: 12px; line-height: 1.3; }
+.qbtns { display: flex; gap: 6px; }
+.btn.mini { padding: 2px 8px; font-size: 12px; }
+#pause .sheet { width: min(360px, 100%); grid-template-rows: auto; height: auto; }
+.pview { display: grid; gap: 10px; text-align: center; }
+.pview h2 { margin: 0; font-size: 32px; }
+.pview .big { font-size: 20px; padding: 8px; }
+.set { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; text-align: left; background: #fffaf0; border: 2px solid #e2cfae; border-radius: 10px; padding: 6px 10px; }
+.set input[type=range] { accent-color: var(--pink); width: 100%; }
+.set input[type=checkbox] { accent-color: var(--green); width: 20px; height: 20px; justify-self: start; }
+#qDone { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 9; padding: 10px 22px; text-align: center; pointer-events: none; display: grid; gap: 2px; min-width: 300px; }
+#qDone .big { font-size: 24px; color: var(--pink); }
+#qDone .nx { color: var(--ink2); font-size: 13px; }
+#qDone.pop { animation: qpop .5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes qpop { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+#quests .sheet { width: min(560px, 100%); grid-template-rows: auto auto 1fr; }
+.qrow { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border: 2px solid #e2cfae; border-radius: 10px; background: #fffaf0; margin-bottom: 6px; }
+.qrow .qn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #f1e1bf; font-size: 15px; }
+.qrow.done { opacity: .6; } .qrow.done .qn { background: #9fe07a; color: #fff; }
+.qrow.now { border-color: var(--pink); background: #fff0f5; box-shadow: 0 0 0 3px #ffd6e6; } .qrow.now .qn { background: var(--pink); color: #fff; }
+.qrow.later { opacity: .55; }
 #hud .goal .coin { width: 12px; height: 12px; }
 #coins { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 6px 14px; display: flex; gap: 8px; align-items: center; font-size: 18px; }
 .coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3b0, var(--gold) 55%, #c98a10); border: 2px solid #8a5a10; display: inline-block; }
@@ -188,7 +214,10 @@ body.building #hint, body.building #card { display: none !important; }
   #tut { right: 10px; bottom: calc(84px + env(safe-area-inset-bottom)); }
   #hud { min-width: 0; font-size: 12px; } #hud .farm { font-size: 15px; }
   #tools { top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); right: 50%; transform: translateX(50%); }
-  #tools .btn { min-width: 54px; }
+  #tools { gap: 4px; width: calc(100vw - 16px); justify-content: center; }
+  #tools .btn { min-width: 0; flex: 1 1 0; padding: 4px 2px; font-size: 10px; }
+  #tools canvas { width: 24px; height: 24px; }
+  #hud .goal { width: auto; }
   #hint { display: none; }
   #card { bottom: calc(80px + env(safe-area-inset-bottom)); width: calc(100vw - 20px); }
   .creator { grid-template-columns: 1fr; justify-items: center; }
@@ -201,12 +230,12 @@ body.building #hint, body.building #card { display: none !important; }
 <div id="hud" class="panel hidden"><div class="farm px"><span id="hFarm"></span><span class="coins"><span class="coin"></span><span id="hCoins">0</span></span></div><div class="row"><span id="hDay"></span><span id="hTime"></span><span id="hWx"></span></div><div class="row" id="hBeauty"></div><div class="goal" id="hGoal"></div></div>
 <div id="tools" class="hidden">
   <button class="btn" id="bShop"><canvas width="16" height="16"></canvas>Shop</button>
+  <button class="btn" id="bQuest"><canvas width="16" height="16"></canvas>Quests</button>
   <button class="btn" id="bDex"><canvas width="16" height="16"></canvas>Critterdex</button>
   <button class="btn" id="bBag"><canvas width="16" height="16"></canvas>Basket</button>
   <button class="btn" id="bBuild"><canvas width="16" height="16"></canvas>Build (B)</button>
   <button class="btn" id="bUndo" disabled><canvas width="16" height="16"></canvas>Undo</button>
   <button class="btn" id="bMenu"><canvas width="16" height="16"></canvas>Menu</button>
-  <button class="btn" id="bSound"><canvas width="16" height="16"></canvas>Sound on</button>
 </div>
 <div id="toasts"></div>
 <div id="hint" class="panel hidden"></div>
@@ -227,6 +256,18 @@ body.building #hint, body.building #card { display: none !important; }
 <div id="buildTip" class="panel hidden"></div>
 
 <div id="shop" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px">Market stall</h2><div class="tabs" id="shopTabs"></div><div class="scroll" id="shopBody"></div><div class="foot" id="shopFoot"></div></div></div>
+<div id="qDone" class="panel hidden"></div>
+<div id="pause" class="modal hidden"><div class="sheet panel">
+  <div id="pMain" class="pview"><h2 class="px">Paused</h2><div class="tag" id="pTag"></div>
+    <button class="btn go px big" id="pResume">Resume</button><button class="btn px big" id="pSettings">Settings</button><button class="btn px big" id="pQuit">Save &amp; main menu</button></div>
+  <div id="pSet" class="pview hidden"><h2 class="px">Settings</h2>
+    <label class="set"><span>Sound volume</span><input type="range" id="sVol" min="0" max="100" step="5"><b id="sVolV"></b></label>
+    <label class="set"><span>Birdsong</span><input type="checkbox" id="sBirds"><b></b></label>
+    <label class="set"><span>Tips bar</span><input type="checkbox" id="sTips"><b></b></label>
+    <label class="set"><span>Zoom</span><input type="range" id="sZoom" min="2" max="5" step="0.25"><b id="sZoomV"></b></label>
+    <button class="btn go px" id="pBack">Done</button></div>
+</div></div>
+<div id="quests" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px">Quest book</h2><div class="tag" id="qTag"></div><div class="scroll" id="qBody"></div></div></div>
 <div id="dex" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px">Critterdex</h2><div class="tag" id="dexTag"></div><div class="scroll" id="dexBody"></div><div class="foot">Shops only sell the common colours. Happy animals that love you have babies, and sometimes a surprise colour!</div></div></div>
 <div id="morning" class="modal hidden"><div class="sheet panel"><h2 class="px" id="mTitle">Good morning!</h2><div class="scroll" id="mBody"></div><div style="display:flex;justify-content:center"><button class="btn go" data-close>Let's go!</button></div></div></div>
 
@@ -1763,37 +1804,74 @@ def('campfire', { name: 'Campfire', cat: 'deco', price: 20, beauty: 2, light: tr
 const TALL = { house: 4, coop: 4, barn: 5, shed: 3, windmill: 5, silo: 3, stall: 1, fountain: 1, well: 1 };
 // little goals that guide a new farmer, each with a coin reward
 const roomItems = (g) => { const h = g.things.find((o) => o.id === 'house'); return h && h.room ? h.room.items.length : 0; };
+// helpers for quest arrows: where to look
+const qThing = (id) => (g) => { const o = g.things.find((q) => id === 'stall' ? q.shop : q.id === id); return o && { x: o.x + o.w / 2, y: o.y - (TALL[o.id] || 1) + 0.6 }; };
+const qWild = (sk) => (g) => { let b = null, bd = 1e9; for (const a of g.animals) if (a.wild && a.sk === sk) { const d = dist(a.x, a.y, g.player.x, g.player.y); if (d < bd) { bd = d; b = a; } } return b && { x: b.x, y: b.y - 1.2 }; };
+const qSoil = (pred) => (g) => { const W = g.world; let b = null, bd = 1e9; for (let i = 0; i < W.soil.length; i++) if (W.soil[i] && pred(g, i)) { const x = i % W.W, y = (i / W.W) | 0, d = dist(x, y, g.player.x, g.player.y); if (d < bd) { bd = d; b = { x: x + 0.5, y: y - 0.3 }; } } return b; };
+const dexN = (g) => Object.values(g.dex).reduce((s, a) => s + a.length, 0);
+const ADOPTABLE = ['frog', 'mouse', 'swan', 'capybara'];
+// the quest line: each quest says how to do it, tracks progress, and can point the way
 const GOALS = [
-  { text: 'Earn 200 coins from selling', reward: 25, done: (g) => (g.stats.earned || 0) >= 200 },
-  { text: 'Plant 6 seeds in your field', reward: 15, done: (g) => (g.stats.planted || 0) >= 6 },
-  { text: 'Harvest 5 crops', reward: 25, done: (g) => (g.stats.harvested || 0) >= 5 },
-  { text: 'Catch 5 fish', reward: 20, done: (g) => g.stats.fish >= 5 },
-  { text: 'Make friends with a wild frog', reward: 20, done: (g) => (g.dex.frog || []).length >= 1 },
-  { text: 'Buy a duck', reward: 20, done: (g) => g.animals.some((a) => a.sk === 'duck') },
-  { text: 'Dig a pond of 6 tiles (build mode, Decor)', reward: 30, done: (g) => (g.stats.ponds || 0) >= 6 },
-  { text: 'Adopt a wild critter (pat it, then give it a snack)', reward: 40, done: (g) => (g.stats.adopted || 0) >= 1 },
-  { text: 'Plant 5 flowers around your farm', reward: 15, done: (g) => g.things.filter((o) => o.id === 'flower' || o.id === 'pot').length >= 13 },
-  { text: 'Set up a beehive near some flowers', reward: 30, done: (g) => g.things.some((o) => o.id === 'beehive') },
-  { text: 'Collect 3 jars of honey', reward: 40, done: (g) => (g.stats.honey || 0) >= 3 },
-  { text: 'Decorate your house with 4 new things', reward: 30, done: (g) => roomItems(g) >= 9 },
-  { text: 'Build a big barn', reward: 60, done: (g) => g.things.some((o) => o.id === 'barn') },
-  { text: 'Welcome a sheep or a cow', reward: 40, done: (g) => g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') },
-  { text: 'Spot 3 colours of butterfly', reward: 30, done: (g) => (g.dex.butterfly || []).length >= 3 },
-  { text: 'Have a baby animal born', reward: 50, done: (g) => g.stats.born >= 1 },
-  { text: 'Harvest 40 crops', reward: 60, done: (g) => (g.stats.harvested || 0) >= 40 },
-  { text: 'Grow a pumpkin or a watermelon', reward: 80, done: (g) => (g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0) >= 1 },
-  { text: 'Adopt a capybara', reward: 80, done: (g) => g.animals.some((a) => a.adopted && a.sk === 'capybara') },
-  { text: 'Reach 3 stars of farm beauty', reward: 80, done: (g) => g.beauty() >= 60 },
-  { text: 'Expand your house', reward: 60, done: (g) => g.things.some((o) => o.id === 'house' && o.room && o.room.grown) },
-  { text: 'Find 20 colours for your Critterdex', reward: 100, done: (g) => Object.values(g.dex).reduce((s, a) => s + a.length, 0) >= 20 },
-  { text: 'Find a rare colour ✨', reward: 150, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.some((c) => SPECIES[sk].colors[c].rare >= 2)) },
-  { text: 'Earn 3,000 coins in total', reward: 150, done: (g) => (g.stats.earned || 0) >= 3000 },
-  { text: 'Adopt a frog, a mouse, a swan and a capybara', reward: 200, done: (g) => ['frog', 'mouse', 'swan', 'capybara'].every((sk) => g.animals.some((a) => a.adopted && a.sk === sk)) },
-  { text: 'Reach 4 stars of farm beauty', reward: 200, done: (g) => g.beauty() >= 120 },
-  { text: 'Find 5 colours of one farm animal', reward: 250, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.length >= 5 && FARM_SPECIES.includes(sk)) },
-  { text: 'Earn 10,000 coins in total', reward: 400, done: (g) => (g.stats.earned || 0) >= 10000 },
-  { text: 'Complete a whole Critterdex page', reward: 500, done: (g) => Object.entries(g.dex).some(([sk, cs]) => cs.length >= SPECIES[sk].colors.length && FARM_SPECIES.includes(sk)) },
+  { text: 'Earn 200 coins from selling', reward: 25, prog: (g) => [g.stats.earned || 0, 200], target: qThing('stall'),
+    how: 'Gather flowers, eggs, fish or wood, then sell them at the market stall.' },
+  { text: 'Plant 6 seeds in your field', reward: 15, prog: (g) => [g.stats.planted || 0, 6], target: qSoil((g, i) => !g.crops.has(i)),
+    how: 'Click the brown soil to plant. More seeds are in the Seeds tab at the market.' },
+  { text: 'Harvest 5 crops', reward: 25, prog: (g) => [g.stats.harvested || 0, 5], target: qSoil((g, i) => g.crops.has(i)),
+    how: 'Water your seedlings every day. When a crop sparkles, click it to harvest.' },
+  { text: 'Catch 5 fish', reward: 20, prog: (g) => [g.stats.fish, 5], target: (g) => { let b = null, bd = 1e9; for (const s of g.fishSpots) { const d = dist(s.x, s.y, g.player.x, g.player.y); if (d < bd) { bd = d; b = s; } } return b && { x: b.x + 0.5, y: b.y - 0.2 }; },
+    how: 'Click the water to cast your line, then click again as soon as you see "!".' },
+  { text: 'Make friends with a wild frog', reward: 20, prog: (g) => [(g.dex.frog || []).length, 1], target: qWild('frog'),
+    how: 'Frogs sit beside ponds. Walk up and click one to give it a pat.' },
+  { text: 'Buy a duck', reward: 20, prog: (g) => [g.animals.some((a) => a.sk === 'duck') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Ducks are in the Animals tab at the market stall. They live in your coop.' },
+  { text: 'Dig a pond of 6 tiles', reward: 30, prog: (g) => [g.stats.ponds || 0, 6],
+    how: 'Press B, open "Buy more", get Pond water from the Decor tab, then drag across the grass.' },
+  { text: 'Adopt a wild critter', reward: 40, prog: (g) => [g.stats.adopted || 0, 1], target: qWild('frog'),
+    how: 'Buy a critter snack (Animals tab), pat a wild frog, then press Adopt on its card.' },
+  { text: 'Plant 5 flowers around your farm', reward: 15, prog: (g) => [Math.max(0, g.things.filter((o) => o.id === 'flower' || o.id === 'pot').length - 8), 5],
+    how: 'Press B and place Flowers from your bag. More flowers are in the Decor tab.' },
+  { text: 'Set up a beehive', reward: 30, prog: (g) => [g.things.some((o) => o.id === 'beehive') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Buy a Beehive in the Farm tab and place it near at least 4 flowers.' },
+  { text: 'Collect 3 jars of honey', reward: 40, prog: (g) => [g.stats.honey || 0, 3], target: qThing('beehive'),
+    how: 'A hive with 4+ flowers nearby makes a jar each morning. Click the hive to collect it.' },
+  { text: 'Decorate your house with 4 new things', reward: 30, prog: (g) => [Math.max(0, roomItems(g) - 5), 4], target: qThing('house'),
+    how: 'Buy furniture in the Home tab, click your house to go inside, then press B.' },
+  { text: 'Build a big barn', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'barn') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Barns are in the Buildings tab. Place it with B, with space in front of the door.' },
+  { text: 'Welcome a sheep or a cow', reward: 40, prog: (g) => [g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Buy one from the Animals tab. Give the barn its own hay feeder and water trough.' },
+  { text: 'Spot 3 colours of butterfly', reward: 30, prog: (g) => [(g.dex.butterfly || []).length, 3], target: (g) => { const b = (g.bugs || [])[0]; return b && { x: b.x, y: b.y - 1.6 }; },
+    how: 'Butterflies visit pretty farms on dry days. Click one to take a closer look.' },
+  { text: 'Have a baby animal born', reward: 50, prog: (g) => [g.stats.born || 0, 1],
+    how: 'Feed, water and pat two animals of the same kind every day. Happy pairs have babies if there\'s room at home.' },
+  { text: 'Harvest 40 crops', reward: 60, prog: (g) => [g.stats.harvested || 0, 40], target: qSoil((g, i) => g.crops.has(i) && g.crops.get(i).g >= CROP[g.crops.get(i).c].days),
+    how: 'Bigger fields mean bigger harvests. Farm soil is in the Farm tab.' },
+  { text: 'Grow a pumpkin or a watermelon', reward: 80, prog: (g) => [(g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0), 1],
+    how: 'Their seeds arrive at the market on day 7. They need 6 watered days to grow.' },
+  { text: 'Adopt a capybara', reward: 80, prog: (g) => [g.animals.some((a) => a.adopted && a.sk === 'capybara') ? 1 : 0, 1], target: qWild('capybara'),
+    how: 'Capybaras need a deep pond: dig one at least 3×3. Pat one in the wild, then adopt it.' },
+  { text: 'Reach 3 stars of farm beauty', reward: 80, prog: (g) => [g.beauty(), 60],
+    how: 'Flowers, ponds, lamps, benches and buildings all make your farm prettier.' },
+  { text: 'Expand your house', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'house' && o.room && o.room.grown) ? 1 : 0, 1], target: qThing('house'),
+    how: 'Go inside, press B, and click "Expand room".' },
+  { text: 'Find 20 colours for your Critterdex', reward: 100, prog: (g) => [dexN(g), 20],
+    how: 'New animals, babies, wild critters and butterflies all add colours.' },
+  { text: 'Find a rare colour ✨', reward: 150, prog: (g) => [Object.entries(g.dex).some(([sk, cs]) => cs.some((c) => SPECIES[sk].colors[c].rare >= 2)) ? 1 : 0, 1],
+    how: 'Rare colours come from babies, lucky butterflies and special wild critters.' },
+  { text: 'Earn 3,000 coins in total', reward: 150, prog: (g) => [g.stats.earned || 0, 3000],
+    how: 'Honey, milk, wool and big crops sell for the most.' },
+  { text: 'Adopt a frog, a mouse, a swan and a capybara', reward: 200, prog: (g) => [ADOPTABLE.filter((sk) => g.animals.some((a) => a.adopted && a.sk === sk)).length, 4],
+    how: 'Mice need a hay bale, swans a pond of 6+ tiles, capybaras a deep pond.' },
+  { text: 'Reach 4 stars of farm beauty', reward: 200, prog: (g) => [g.beauty(), 120],
+    how: 'Keep decorating! Fountains and windmills are extra pretty.' },
+  { text: 'Find 5 colours of one farm animal', reward: 250, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length)), 5],
+    how: 'Buy a few of one kind and let them have babies. The market sells the common colours.' },
+  { text: 'Earn 10,000 coins in total', reward: 400, prog: (g) => [g.stats.earned || 0, 10000],
+    how: 'You\'re a farming pro now. Keep it up!' },
+  { text: 'Complete a whole Critterdex page', reward: 500, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length / SPECIES[sk].colors.length)) * 100 | 0, 100],
+    how: 'Collect every colour of one animal. Horses (5) and ducks (5) have the smallest pages.' },
 ];
+for (const G of GOALS) G.done = (g) => { const [a, b] = G.prog(g); return a >= b; };
 const CATS = [['animals', 'Animals'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
 
 // ---------------------------------------------------------------- game
@@ -2139,7 +2217,7 @@ class Game {
     this.goalT += dt;
     if (this.goalT > 0.5 && this.started && this.tut >= TUTORIAL.length) {
       this.goalT = 0; const G = GOALS[this.goal];
-      if (G && G.done(this)) { this.coins += G.reward; this.goal++; this.toast(`Goal done: ${G.text}! +${G.reward} coins`, 'good'); this.sfx('coin'); this.emit('changed'); }
+      if (G && G.done(this)) { this.coins += G.reward; this.goal++; this.emit('quest', { G, next: GOALS[this.goal] }); this.sfx('catch'); this.heart(this.player.x, this.player.y - 1.6); this.emit('changed'); }
     }
     this.time += dt / this.DAY_SEC * 18 * 60;
     if (this.time >= 24 * 60) this.endDay();
@@ -3070,9 +3148,10 @@ function installUI(game, app) {
   });
   // ---- tool buttons
   const toolIcon = (sel, key, cx, cy) => { const c = $(sel + ' canvas'), g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(IMG[key], cx * 16, cy * 16, 16, 16, 0, 0, 16, 16); };
-  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bSound', P.other, 2, 0); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
+  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
   $('#bShop').onclick = () => ui.openShop('animals');
   $('#bDex').onclick = () => ui.openDex();
+  $('#bQuest').onclick = () => ui.openQuests();
   $('#bBag').onclick = () => ui.openShop('sell');
   for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('.modal').classList.add('hidden');
   for (const m of document.querySelectorAll('.modal')) m.addEventListener('pointerdown', (e) => { if (e.target === m) m.classList.add('hidden'); });
@@ -3087,10 +3166,49 @@ function installUI(game, app) {
     const b = game.beauty(), stars = b < 20 ? 1 : b < 60 ? 2 : b < 120 ? 3 : b < 220 ? 4 : 5;
     $('#hBeauty').innerHTML = `Farm beauty <span style="color:var(--gold);letter-spacing:1px">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>`;
     $('#hCoins').textContent = game.coins;
-    const G = GOALS[game.goal];
-    $('#hGoal').classList.toggle('hidden', game.tut < TUTORIAL.length);
-    $('#hGoal').innerHTML = G ? `<b>Goal:</b> ${G.text} <span class="price"><span class="coin"></span>${G.reward}</span>` : '<b>All goals done!</b> Keep collecting colours.';
+    ui.quest();
   };
+  // ---- the current quest: what to do, how far along, how to do it
+  ui.questArrow = false;
+  ui.quest = () => {
+    const box = $('#hGoal'), G = GOALS[game.goal];
+    box.classList.toggle('hidden', game.tut < TUTORIAL.length);
+    if (!G) { if (box.dataset.k !== 'done') { box.dataset.k = 'done'; box.innerHTML = '<div class="qhead"><b>All quests done! 🎉</b></div><div class="qhow">Keep collecting colours and making your farm pretty.</div><div class="qbtns"><button class="btn mini" data-q="all">Quest book</button></div>'; } return; }
+    if (box.dataset.k !== String(game.goal)) {
+      box.dataset.k = String(game.goal); ui.questArrow = false;
+      box.innerHTML = `<div class="qhead"><b>Quest ${game.goal + 1} of ${GOALS.length}</b><span class="price"><span class="coin"></span>${G.reward}</span></div>
+        <div class="qtext px">${G.text}</div><div class="qbar"><i></i><span></span></div><div class="qhow">${G.how}</div>
+        <div class="qbtns">${G.target ? '<button class="btn mini" data-q="show">📍 Show me</button>' : ''}<button class="btn mini" data-q="all">Quest book</button></div>`;
+    }
+    const [a, b] = G.prog(game), f = clamp(a / b, 0, 1);
+    box.querySelector('.qbar i').style.width = `${Math.round(f * 100)}%`;
+    box.querySelector('.qbar span').textContent = b >= 100 && game.goal === GOALS.length - 1 ? `${Math.floor(a)}%` : `${Math.min(Math.floor(a), b).toLocaleString()} / ${b.toLocaleString()}`;
+    const sb = box.querySelector('[data-q=show]'); if (sb) sb.textContent = ui.questArrow ? '📍 Hide arrow' : '📍 Show me';
+  };
+  $('#hGoal').addEventListener('click', (e) => {
+    const q = e.target.closest('[data-q]'); if (!q) return;
+    if (q.dataset.q === 'show') { ui.questArrow = !ui.questArrow; ui.quest(); }
+    else ui.openQuests();
+  });
+  ui.openQuests = () => {
+    const body = $('#qBody'); body.innerHTML = '';
+    GOALS.forEach((G, i) => {
+      const st = i < game.goal ? 'done' : i === game.goal ? 'now' : 'later', row = el('div', 'qrow ' + st);
+      const [a, b] = G.prog(game);
+      row.appendChild(el('div', 'qn px', st === 'done' ? '✔' : String(i + 1)));
+      row.appendChild(el('div', '', `<b>${G.text}</b><div class="qhow">${st === 'later' ? 'Unlocks after the quest before it.' : st === 'done' ? 'Done!' : G.how + ` <b>(${Math.min(Math.floor(a), b)} / ${b})</b>`}</div>`));
+      row.appendChild(el('div', 'price', `<span class="coin"></span>${G.reward}`));
+      body.appendChild(row);
+    });
+    $('#qTag').textContent = `${game.goal} of ${GOALS.length} quests done`;
+    $('#quests').classList.remove('hidden');
+    const cur = body.querySelector('.now'); if (cur) cur.scrollIntoView({ block: 'center' });
+  };
+  game.on('quest', ({ G, next }) => {
+    const d = $('#qDone'); d.innerHTML = `<div class="px big">✨ Quest complete! ✨</div><div>${G.text} · <span class="price"><span class="coin"></span>+${G.reward}</span></div>${next ? `<div class="nx">Next: <b>${next.text}</b></div>` : '<div class="nx"><b>That was the last one. You did it!</b></div>'}`;
+    d.classList.remove('hidden'); d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    clearTimeout(ui._qd); ui._qd = setTimeout(() => d.classList.add('hidden'), 4200);
+  });
 
   // ---- animal card
   ui.card = (a) => {
@@ -3221,7 +3339,7 @@ function installUI(game, app) {
   // the seed you'll plant next, with a picker
   ui.seedBar = () => {
     const bar = $('#seedBar'), pick = $('#seedPick'), have = Object.keys(game.seeds).filter((k) => game.seeds[k] > 0);
-    const show = game.started !== false && have.length && !game.inside;
+    const show = game.started !== false && have.length && !game.inside && ui.nearSoil;
     bar.classList.toggle('hidden', !show); if (!show) { pick.classList.add('hidden'); return; }
     if (!(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
     const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length;
@@ -3617,17 +3735,35 @@ function installBuild(game, app, ui) {
     tut = makeTutorial(game); ui.tutorial(tut);
     game.on('undo', () => ui.undoState());
     $('#bUndo').onclick = () => { game.undo(); ui.hud(); };
-    $('#bMenu').onclick = () => ask('Save and go back to the main menu?', { yes: 'Main menu', no: 'Keep playing' }).then((ok) => { if (ok) { game.save(); location.reload(); } });
+    // pause menu: resume, settings, back to the main menu
+    const openPause = () => { $('#pMain').classList.remove('hidden'); $('#pSet').classList.add('hidden'); $('#pTag').textContent = `${game.farmName} · Day ${game.day}`; $('#pause').classList.remove('hidden'); };
+    $('#bMenu').onclick = openPause; app.pause = openPause;
+    $('#pResume').onclick = () => $('#pause').classList.add('hidden');
+    $('#pQuit').onclick = () => { game.save(); location.reload(); };
+    $('#pSettings').onclick = () => { $('#pMain').classList.add('hidden'); $('#pSet').classList.remove('hidden'); showSettings(); };
+    $('#pBack').onclick = () => { $('#pSet').classList.add('hidden'); $('#pMain').classList.remove('hidden'); };
     addEventListener('pagehide', () => game && game.started && game.save());
-    $('#bSound').onclick = () => { audio.muted = !audio.muted; $('#bSound').lastChild.textContent = audio.muted ? 'Sound off' : 'Sound on'; };
     for (const id of ['#hud', '#tools', '#hint']) $(id).classList.remove('hidden');
     ui.undoState();
-    R.cam.x = game.player.x; R.cam.y = game.player.y; R.cam.z = innerWidth < 700 ? 2.5 : 3; outZoom = R.cam.z; if (game.inside) roomCam(true);
+    R.cam.x = game.player.x; R.cam.y = game.player.y; R.cam.z = settings.zoom || (innerWidth < 700 ? 2.5 : 3); outZoom = R.cam.z; if (game.inside) roomCam(true);
     ui.hud(); hint();
     setInterval(() => game && game.save(), 20000);
     audio.unlock();
   });
   let fading = 0, fadeCb = null, outZoom = 3;
+  // player settings, kept between visits
+  const settings = Object.assign({ vol: 0.7, birds: true, tips: true, zoom: 0 }, store.get('critter-cove-settings') || {});
+  const saveSettings = () => { store.set('critter-cove-settings', settings); audio.setVolume(settings.vol); };
+  audio.setVolume(settings.vol);
+  function showSettings() {
+    const vol = $('#sVol'), z = $('#sZoom');
+    vol.value = Math.round(settings.vol * 100); $('#sVolV').textContent = vol.value + '%';
+    vol.oninput = () => { settings.vol = vol.value / 100; $('#sVolV').textContent = vol.value + '%'; saveSettings(); audio.play('pop'); };
+    $('#sBirds').checked = settings.birds; $('#sBirds').onchange = () => { settings.birds = $('#sBirds').checked; saveSettings(); };
+    $('#sTips').checked = settings.tips; $('#sTips').onchange = () => { settings.tips = $('#sTips').checked; saveSettings(); hint(); };
+    z.value = settings.zoom || R.cam.z; $('#sZoomV').textContent = (+z.value).toFixed(1) + '×';
+    z.oninput = () => { settings.zoom = +z.value; $('#sZoomV').textContent = (+z.value).toFixed(1) + '×'; if (!game.inside) R.cam.z = settings.zoom; outZoom = settings.zoom; saveSettings(); };
+  }
   function leaveHouse() { if (fading || !game.inside) return; fade(() => { game.exitHouse(); R.cam.z = outZoom; R.cam.x = game.player.x; R.cam.y = game.player.y; }); }
   // inside, the camera frames the whole room
   function roomCam(snap) {
@@ -3645,6 +3781,7 @@ function installBuild(game, app, ui) {
   function hint() {
     if (!ui) return;
     const msgs = ['WASD or click to walk · click animals to pat them', 'Click trees, rocks and flowers to gather · click water to fish', 'Visit the market stall to shop and sell · Ctrl+Z undoes a build · scroll to zoom', 'Click your field to plant · click seedlings to water them', 'Pat wild critters, then adopt them with a critter snack', 'Click your house to go inside and decorate · press B to build'];
+    $('#hint').classList.toggle('hidden', !settings.tips);
     $('#hint').textContent = msgs[Math.floor(performance.now() / 9000) % msgs.length];
   }
 
@@ -3659,7 +3796,7 @@ function installBuild(game, app, ui) {
     const modalOpen = document.querySelector('.modal:not(.hidden)');
     if (e.code === 'KeyB' && !modalOpen) { build.toggle(); e.preventDefault(); return; }
     if (build.on && !modalOpen && build.key(e)) { e.preventDefault(); return; }
-    if (e.code === 'Escape') { app.select(null); for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); }
+    if (e.code === 'Escape') { if (modalOpen) { for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); } else if (sel) app.select(null); else if (app.pause) app.pause(); }
   });
   addEventListener('keyup', (e) => { if (keymap[e.code]) input[keymap[e.code]] = false; });
   addEventListener('blur', () => { for (const k in input) input[k] = false; });
@@ -3732,6 +3869,14 @@ function installBuild(game, app, ui) {
     }
     if (r.inb(tx, ty)) walkTo(wx, wy, 0, null);
   }
+  // is the farmer standing at (or hovering over) the field? then show the seed picker
+  function nearSoil() {
+    if (!game.started || game.inside || (build && build.on)) return false;
+    if (hover && hover.soil) return true;
+    const W = game.world, px = Math.floor(game.player.x), py = Math.floor(game.player.y);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (W.inb(px + dx, py + dy) && W.soil[W.idx(px + dx, py + dy)]) return true;
+    return false;
+  }
   // a soil tile under the cursor (tall crops can be clicked on their leaves too)
   function soilAt(wx, wy) {
     const W = game.world, tx = Math.floor(wx), ty = Math.floor(wy), S = (x, y) => W.inb(x, y) && W.soil[W.idx(x, y)];
@@ -3792,7 +3937,7 @@ function installBuild(game, app, ui) {
       if (build.on && !game.inside) { const sp = dt * 14 / R.cam.z * 3; R.cam.x += ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * sp; R.cam.y += ((input.down ? 1 : 0) - (input.up ? 1 : 0)) * sp; }
       game.update(dt);
       if (tut) tut.update();
-      if (!game.isNight() && game.weather.rain < 0.3 && Math.random() < dt * 0.12) audio.play('chirp');
+      if (settings.birds && !game.isNight() && game.weather.rain < 0.3 && Math.random() < dt * 0.12) audio.play('chirp');
       if (game.time >= 24 * 60 - 1 && !fading) fade(() => {});
     }
     // camera follows the player (on the menu it drifts along the beach)
@@ -3801,7 +3946,7 @@ function installBuild(game, app, ui) {
     else if (game.inside) roomCam(false);
     else if (!(build && build.on)) { R.cam.x += (tgt.x - R.cam.x) * Math.min(1, dt * 5); R.cam.y += (tgt.y - 0.5 - R.cam.y) * Math.min(1, dt * 5); }
     draw(dt);
-    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { ui.hud(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
+    if (ui) { if (Math.floor(time * 4) !== Math.floor((time - dt) * 4)) { const ns = nearSoil(); if (ns !== ui.nearSoil) { ui.nearSoil = ns; ui.seedBar(); } ui.hud(); if (sel && game.inside) app.select(null); else if (sel) { if (dist(sel.x, sel.y, game.player.x, game.player.y) > 8) app.select(null); else ui.card(sel); } hint(); } }
     requestAnimationFrame(frame);
   }
 
@@ -3922,6 +4067,7 @@ function installBuild(game, app, ui) {
     }
     if (sel) { const sx = R.sx(sel.x), sy = R.sy(sel.y); g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 2 * R.dpr; g.beginPath(); g.ellipse(sx, sy, 7 * R.Z, 3 * R.Z, 0, 0, Math.PI * 2); g.stroke(); }
     if (tut && tut.active() && game.started) { const T = tut.target(); if (T) drawArrow(T.x, T.y); }
+    else if (ui && ui.questArrow && GOALS[game.goal] && GOALS[game.goal].target) { const T = GOALS[game.goal].target(game); if (T) drawArrow(T.x, T.y); }
     if (fading) { g.fillStyle = `rgba(0,0,0,${fading < 1 ? fading : 2 - fading})`; g.fillRect(0, 0, R.W, R.H); }
   }
   function drawInside(dt) {
@@ -4097,7 +4243,7 @@ function installBuild(game, app, ui) {
 // ----------------------------------------------------------------- sound
 // small synthesised blips (no audio files needed)
 function makeAudio() {
-  let ac = null, master = null;
+  let ac = null, master = null, avVol = 0.7;
   const tone = (f, t0, dur, type = 'sine', vol = 0.15, slide = 0) => {
     const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t0 + dur);
@@ -4124,7 +4270,8 @@ function makeAudio() {
     splash: (t) => { for (let i = 0; i < 6; i++) tone(900 - i * 90, t + i * 0.025, 0.05, 'sine', 0.05); },
   };
   return {
-    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.6; master.connect(ac.destination); } catch (e) { ac = null; } },
+    unlock() { if (ac) { if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.85 * avVol; master.connect(ac.destination); } catch (e) { ac = null; } },
+    setVolume(v) { avVol = v; if (master) master.gain.value = 0.85 * v; },
     muted: false,
     play(n) { if (!ac || !S[n] || this.muted) return; S[n](ac.currentTime + 0.01); },
   };

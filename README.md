@@ -25,6 +25,7 @@ adopt wild critters, keep bees, decorate your house and make the prettiest farm 
 | Move | WASD / arrow keys, or click where to go |
 | Interact | Click animals, crops, trees, rocks, water and buildings |
 | Build mode | **B** · Undo with **Ctrl+Z** |
+| Pause / settings | **Esc** or the Menu button |
 | Zoom | Mouse wheel / pinch |
 
 ## Put it online with GitHub Pages
