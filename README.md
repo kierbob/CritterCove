@@ -15,6 +15,9 @@ adopt wild critters, keep bees, decorate your house and make the prettiest farm 
 - 🐝 **Bees and butterflies:** beehives make honey from nearby flowers; butterflies visit pretty farms
 - 🎣 **Fish, forage, chop and mine** to earn coins at the market stall
 - 🏡 **Decorate:** build mode outside, and furniture for inside your cottage
+- 🧑‍🌾 **Hire helpers:** a farmhand, gardener, fisher, lumberjack, miner and shopkeeper. Build them cottages, pay their wages and watch them work
+- 🌿 **Fertilizer** makes crops grow twice as fast
+- 🗺️ **Island map** (press **M**)
 - 💾 Three save plots, and your farm saves by itself
 
 ![A farm at night](docs/screenshot-night.png)
@@ -26,6 +29,7 @@ adopt wild critters, keep bees, decorate your house and make the prettiest farm 
 | Interact | Click animals, crops, trees, rocks, water and buildings |
 | Build mode | **B** · Undo with **Ctrl+Z** |
 | Pause / settings | **Esc** or the Menu button |
+| Island map | **M** |
 | Zoom | Mouse wheel / pinch |
 
 ## Put it online with GitHub Pages

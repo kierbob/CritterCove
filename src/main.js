@@ -97,6 +97,7 @@
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { if (build.carry) build.cancelCarry(); game.undo(); ui.hud(); build.refresh(); e.preventDefault(); return; }
     const modalOpen = document.querySelector('.modal:not(.hidden)');
     if (e.code === 'KeyB' && !modalOpen) { build.toggle(); e.preventDefault(); return; }
+    if (e.code === 'KeyM' && !build.on) { const open = !$('#map').classList.contains('hidden'); if (open) $('#map').classList.add('hidden'); else if (!modalOpen) ui.openMap(); e.preventDefault(); return; }
     if (build.on && !modalOpen && build.key(e)) { e.preventDefault(); return; }
     if (e.code === 'Escape') { if (modalOpen) { for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); } else if (sel) app.select(null); else if (app.pause) app.pause(); }
   });
@@ -132,6 +133,7 @@
     // a line in the water: clicking reels in
     if (game.fishing && game.fishing.state !== 'cast') { game.reel(); return; }
     // what did we click? animals first, then items, then things
+    const hp = game.helperAt(wx, wy); if (hp) { game.toast(`${hp.name} the ${hp.R.name.toLowerCase()}: ${hp.status}.`); return; }
     const bug = game.bugAt(wx, wy); if (bug) { walkTo(bug.x, bug.y, 2.2, () => { if (game.bugs.includes(bug)) game.admireBug(bug); else game.toast('It fluttered away!'); }); return; }
     let best = null, bd = 0.9;
     for (const a of game.animals) { if (a.capy === 'Under') continue; const d = dist(wx, wy, a.x, a.y - 0.45 * (a.sp.size || 1)); if (d < bd) { bd = d; best = a; } }
@@ -324,6 +326,7 @@
     for (const it of game.items) list.push([it.y, () => drawItem(it)]);
     for (const [i, c] of game.crops) { const cx = i % game.world.W, cy = (i / game.world.W) | 0; if (cx > x0 - 1 && cx < x1 + 1 && cy > y0 - 1 && cy < y1 + 3) list.push([cy + 0.45, () => game.drawCrop(R, i, c, time)]); }
     if (game.started) list.push([game.player.y, () => game.player.draw(R, time)]);
+    for (const h of game.helpers || []) if (!h.away && h.x > x0 - 2 && h.x < x1 + 2 && h.y > y0 - 2 && h.y < y1 + 3) list.push([h.y, () => h.draw(R, time)]);
     list.sort((p, q) => p[0] - q[0]);
     for (const [, f] of list) f();
     drawBees(R, game, time);
@@ -412,6 +415,7 @@
   }
   function hoverAt(px, py) {
     const [wx, wy] = R.toWorld(px, py);
+    const hp = game.helperAt(wx, wy); if (hp) return { label: `${hp.name} the ${hp.R.name.toLowerCase()} · ${hp.status}` };
     const bug = game.bugAt(wx, wy); if (bug) { const c = SPECIES.butterfly.colors[bug.col], seen = (game.dex.butterfly || []).includes(bug.col); return { label: seen ? `${c.name} butterfly` : 'A butterfly! Click to take a look' }; }
     let best = null, bd = 0.9;
     for (const a of game.animals) { if (a.capy === 'Under') continue; const d = dist(wx, wy, a.x, a.y - 0.45 * (a.sp.size || 1)); if (d < bd) { bd = d; best = a; } }

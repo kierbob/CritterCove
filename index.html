@@ -55,6 +55,11 @@ button { font: inherit; color: inherit; }
 #needs .need:hover { background: #fff; }
 @keyframes needIn { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
 body.building #needs { display: none; }
+#map .sheet { width: min(900px, 100%); grid-template-rows: auto 1fr auto; }
+.mapwrap { display: grid; place-items: center; min-height: 0; }
+#mapCv { width: 100%; max-height: 66vh; object-fit: contain; image-rendering: pixelated; border: 3px solid var(--line); border-radius: 12px; background: #2f8fd6; }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 12px; color: var(--ink2); }
+.maplegend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.25); }
 #qDone { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 9; padding: 10px 22px; text-align: center; pointer-events: none; display: grid; gap: 2px; min-width: 300px; }
 #qDone .big { font-size: 24px; color: var(--pink); }
 #qDone .nx { color: var(--ink2); font-size: 13px; }
@@ -242,6 +247,7 @@ body.building #hint, body.building #card { display: none !important; }
   <button class="btn" id="bBag"><canvas width="16" height="16"></canvas>Basket</button>
   <button class="btn" id="bBuild"><canvas width="16" height="16"></canvas>Build (B)</button>
   <button class="btn" id="bUndo" disabled><canvas width="16" height="16"></canvas>Undo</button>
+  <button class="btn" id="bMap"><canvas width="16" height="16"></canvas>Map (M)</button>
   <button class="btn" id="bMenu"><canvas width="16" height="16"></canvas>Menu</button>
 </div>
 <div id="toasts"></div>
@@ -264,6 +270,7 @@ body.building #hint, body.building #card { display: none !important; }
 
 <div id="shop" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px">Market stall</h2><div class="tabs" id="shopTabs"></div><div class="scroll" id="shopBody"></div><div class="foot" id="shopFoot"></div></div></div>
 <div id="qDone" class="panel hidden"></div>
+<div id="map" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px" id="mapTitle">Map</h2><div class="mapwrap"><canvas id="mapCv"></canvas></div><div class="maplegend" id="mapLegend"></div></div></div>
 <div id="needs"></div>
 <div id="pause" class="modal hidden"><div class="sheet panel">
   <div id="pMain" class="pview"><h2 class="px">Paused</h2><div class="tag" id="pTag"></div>
@@ -1847,6 +1854,10 @@ const GOALS = [
     how: 'Buy furniture in the Home tab, click your house to go inside, then press B.' },
   { text: 'Build a big barn', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'barn') ? 1 : 0, 1], target: qThing('stall'),
     how: 'Barns are in the Buildings tab. Place it with B, with space in front of the door.' },
+  { text: 'Build a helper\'s cottage', reward: 40, prog: (g) => [g.things.some((o) => o.id === 'hut') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Helpers need somewhere to live. Cottages are in the Buildings tab at the market.' },
+  { text: 'Hire a helper', reward: 50, prog: (g) => [g.helpers.length, 1], target: qThing('stall'),
+    how: 'Open the Helpers tab at the market. A farmhand keeps the feeders and troughs full for you.' },
   { text: 'Welcome a sheep or a cow', reward: 40, prog: (g) => [g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') ? 1 : 0, 1], target: qThing('stall'),
     how: 'Buy one from the Animals tab. Give the barn its own hay feeder and water trough.' },
   { text: 'Spot 3 colours of butterfly', reward: 30, prog: (g) => [(g.dex.butterfly || []).length, 3], target: (g) => { const b = (g.bugs || [])[0]; return b && { x: b.x, y: b.y - 1.6 }; },
@@ -1855,6 +1866,8 @@ const GOALS = [
     how: 'Feed, water and pat two animals of the same kind every day. Happy pairs have babies if there\'s room at home.' },
   { text: 'Harvest 40 crops', reward: 60, prog: (g) => [g.stats.harvested || 0, 40], target: qSoil((g, i) => g.crops.has(i) && g.crops.get(i).g >= CROP[g.crops.get(i).c].days),
     how: 'Bigger fields mean bigger harvests. Farm soil is in the Farm tab.' },
+  { text: 'Fertilize 10 crops', reward: 40, prog: (g) => [g.stats.fertilized || 0, 10],
+    how: 'Buy fertilizer in the Seeds tab, switch it on in the planting bar, then water your crops.' },
   { text: 'Grow a pumpkin or a watermelon', reward: 80, prog: (g) => [(g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0), 1],
     how: 'Their seeds arrive at the market on day 7. They need 6 watered days to grow.' },
   { text: 'Adopt a capybara', reward: 80, prog: (g) => [g.animals.some((a) => a.adopted && a.sk === 'capybara') ? 1 : 0, 1], target: qWild('capybara'),
@@ -1875,13 +1888,15 @@ const GOALS = [
     how: 'Keep decorating! Fountains and windmills are extra pretty.' },
   { text: 'Find 5 colours of one farm animal', reward: 250, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length)), 5],
     how: 'Buy a few of one kind and let them have babies. The market sells the common colours.' },
+  { text: 'Run a little town: hire 4 helpers', reward: 200, prog: (g) => [g.helpers.length, 4],
+    how: 'Every helper needs their own cottage and a daily wage.' },
   { text: 'Earn 10,000 coins in total', reward: 400, prog: (g) => [g.stats.earned || 0, 10000],
     how: 'You\'re a farming pro now. Keep it up!' },
   { text: 'Complete a whole Critterdex page', reward: 500, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length / SPECIES[sk].colors.length)) * 100 | 0, 100],
     how: 'Collect every colour of one animal. Horses (5) and ducks (5) have the smallest pages.' },
 ];
 for (const G of GOALS) G.done = (g) => { const [a, b] = G.prog(g); return a >= b; };
-const CATS = [['animals', 'Animals'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
+const CATS = [['animals', 'Animals'], ['helpers', 'Helpers'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
 
 // ---------------------------------------------------------------- game
 class Game {
@@ -1891,7 +1906,7 @@ class Game {
     this.world = new World(this.seed);
     this.things = [];                        // placed buildings + decor
     this.animals = []; this.items = []; this.fx = []; this.floats = [];
-    this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
+    this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.helpers = []; this.fert = 0; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
     this.weather = { rain: 0, raining: false, kind: 'sunny', clouds: 0.15, wind: 0.2 }; this.dayTruffles = 0; this.stats = { sold: 0, born: 0, eggs: 0 }; this.goal = 0; this.goalT = 0;
     this.listeners = {}; this.farmName = opts.farmName || 'Sunny Acres'; this.slot = opts.slot || 1;
     this.player = new Player(this.world.farm.x + 0.5, this.world.farm.y + 4.6, opts.look);
@@ -2042,6 +2057,7 @@ class Game {
     if (o.shop) return this.toast('The market stall can\'t go in your bag, but you can Move it anywhere you like.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep! Move it instead.', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Animals live here. Use Move to put their home somewhere else.', 'bad');
+    if (DEF[o.id].hut && this.helpers.some((h) => h.home === o.uid)) return this.toast('A helper lives here. Use Move instead.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o); this.put(o.id);
     if (o.eggs) for (const e of o.eggs) this.give(e.item, 1);
     this.recordUndo({ type: 'store', o }); this.puff(o.x + o.w / 2, o.y + o.h, '#ffffff', 8); this.sfx('pop'); this.emit('changed');
@@ -2061,6 +2077,7 @@ class Game {
     if (o.shop) return this.toast('The market stall is where you shop, so it can\'t be destroyed. Use Move to put it somewhere else.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep!', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Some animals live here. Move them first by building another home.', 'bad');
+    if (DEF[o.id].hut && this.helpers.some((h) => h.home === o.uid)) return this.toast('A helper lives here. Dismiss them first (Helpers tab).', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o);
     this.coins += Math.floor(DEF[o.id].price / 2); this.recordUndo({ type: 'remove', o }); this.puff(o.x + o.w / 2, o.y + o.h, '#ffffff', 8); this.sfx('pop');
     if (o.eggs) for (const e of o.eggs) this.dropItem(e.item, o.x + 0.5, o.y + 1);
@@ -2166,6 +2183,7 @@ class Game {
   useThing(o) {
     const D = DEF[o.id];
     if (o.shop) return this.emit('shop');
+    if (D.hut) { const h = this.helpers.find((q) => q.home === o.uid); return this.toast(h ? `${h.name} the ${h.R.name.toLowerCase()} lives here. ${h.status}.` : 'An empty helper\'s cottage. Hire a helper in the Helpers tab at the market.'); }
     if (o.id === 'house') return this.emit('enter', o);
     if (D.hive) return this.useHive(o);
     if (D.feeder === 'feeder') { if (o.amount >= D.cap) return this.toast('It\'s already full.'); if (this.coins < 2) return this.toast('Refilling costs 2 coins.', 'bad'); this.coins -= 2; o.amount = D.cap; this.puff(o.x + 1, o.y + 0.6, '#f2cf5b', 8); this.sfx('fill'); return; }
@@ -2261,6 +2279,7 @@ class Game {
     if (this.weather.rain > 0.5) { for (const o of this.things) if (DEF[o.id].feeder === 'trough') o.amount = DEF[o.id].cap; if (!this.rained) { this.rained = true; this.rainOnSoil(); } } else this.rained = false;
     for (const a of this.animals) a.update(dt, this);
     this.updateBugs(dt);
+    if (this.started) this.updateHelpers(dt);
     this.updateFishing(dt);
     this.growTrees(dt);
     for (const o of this.world.objs) { if (o.shake > 0) o.shake -= dt; if (o.fallT > 0) o.fallT -= dt * 1.4; }
@@ -2340,7 +2359,7 @@ class Game {
     }
     for (const o of this.things) if (DEF[o.id].feeder === 'trough' && this.weather.raining) o.amount = DEF[o.id].cap;
     this.day++;
-    this.growCrops(); this.hiveMorning(); this.regrowIsland(); this.time = 6 * 60; this.dayTruffles = 0;
+    this.growCrops(); this.hiveMorning(); this.payHelpers(report); this.regrowIsland(); this.time = 6 * 60; this.dayTruffles = 0;
     // weather: about one day in four has a shower
     const rnd = mulberry32(this.seed + this.day * 31)();
     this.weather.raining = rnd < 0.25 && this.day > 2; this.weather.from = 8 * 60 + rnd * 600; this.weather.to = this.weather.from + 120 + rnd * 300;
@@ -2376,19 +2395,19 @@ class Game {
   puff(x, y, col, n = 4) { for (let i = 0; i < n; i++) this.fx.push({ x: x + (Math.random() - 0.5) * 0.4, y: y - Math.random() * 0.2, vx: (Math.random() - 0.5) * 1.6, vy: -Math.random() * 1.2, g: 2, t: 0, life: 0.5 + Math.random() * 0.3, col, s: 1 + Math.random() }); }
   heart(x, y) { this.fx.push({ x, y, vx: 0, vy: -0.9, t: 0, life: 1.1, heart: true }); }
   float(x, y, text, col) { this.floats.push({ x, y, text, col: col || '#fff7d6', t: 0 }); }
-  sfx(name) { this.emit('sfx', name); }
+  sfx(name) { if (!this.muteSfx) this.emit('sfx', name); }
 
   // --------------------------------------------------------------- saving
   serialize() {
     const W = this.world;
     return {
-      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, dex: this.dex, day: this.day, time: this.time, stats: this.stats,
+      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
       look: this.player.look, px: this.player.x, py: this.player.y, inside: this.inside ? this.inside.house.uid : null, nextUid: this.nextUid,
       things: this.things.map((o) => ({ uid: o.uid, id: o.id, x: o.x, y: o.y, v: o.v, amount: o.amount, eggs: o.eggs, shop: o.shop, room: o.room, honey: o.honey })),
       paths: [...W.path.keys()].filter((i) => W.path[i]),
       dug: [...W.dug.keys()].filter((i) => W.dug[i]),
       soil: [...W.soil.keys()].filter((i) => W.soil[i]), wet: [...W.wet.keys()].filter((i) => W.wet[i]),
-      crops: [...this.crops].map(([i, c]) => [i, c.c, c.g]), seeds: this.seeds, seedSel: this.seedSel,
+      crops: [...this.crops].map(([i, c]) => [i, c.c, c.g, c.f ? 1 : 0]), fertOn: this.fertOn !== false, seeds: this.seeds, seedSel: this.seedSel,
       objs: this.world.objs.map((o) => { const c = Object.assign({}, o); delete c.shake; return c; }),
       fishDex: this.fishDex, tut: this.tut,
       animals: this.animals.filter((a) => !a.wild).map((a) => ({ id: a.id, sk: a.sk, color: a.color, name: a.name, x: a.x, y: a.y, age: a.age, friend: a.friend, happy: a.happy, home: a.home, ready: a.ready, muddy: a.muddy, hunger: a.hunger, thirst: a.thirst, adopted: a.adopted, hx: a.hx, hy: a.hy, gift: a.gift })),
@@ -2398,7 +2417,7 @@ class Game {
   save() { store.set(SLOT_KEY(this.slot || 1), this.serialize()); }
   load(s) {
     const W = this.world;
-    this.farmName = s.farmName; this.goal = s.goal || 0; this.bag = s.bag || {}; this.coins = s.coins; this.inv = s.inv || {}; this.snacks = s.snacks || 0;
+    this.farmName = s.farmName; this.goal = s.goal || 0; this.bag = s.bag || {}; this.coins = s.coins; this.inv = s.inv || {}; this.snacks = s.snacks || 0; this.fert = s.fert || 0;
     for (const k of Object.keys(this.bag)) if (!DEF[k]) { this.coins += (k === 'kitchenset' ? 140 : k === 'kitchen' ? 90 : 0) * this.bag[k]; delete this.bag[k]; }   // retired items: refund
     this.dex = s.dex || {}; this.day = s.day; this.time = s.time; this.stats = Object.assign(this.stats, s.stats || {});
     this.nextUid = s.nextUid || 1; Object.assign(this.weather, s.weather || {});
@@ -2411,7 +2430,8 @@ class Game {
     for (const i of s.dug || []) this.setPond(i % W.W, (i / W.W) | 0, true);
     for (const i of s.soil || []) W.soil[i] = 1;
     for (const i of s.wet || []) W.wet[i] = 1;
-    for (const [i, c, g] of s.crops || []) if (CROP[c]) this.crops.set(i, { c, g });
+    for (const [i, c, g, f] of s.crops || []) if (CROP[c]) this.crops.set(i, { c, g, f: !!f });
+    this.fertOn = s.fertOn !== false;
     this.seeds = s.seeds || {}; this.seedSel = s.seedSel || 'wheat';
     for (const t of s.things) {
       const [w, h] = this.dims(t.id, t.v);
@@ -2419,6 +2439,7 @@ class Game {
       W.clearArea(o.x, o.y, o.x + w - 1, o.y + h - 1); this.things.push(o); this.stampThing(o, true);
     }
     for (const a of s.animals) { const an = new Animal(a.sk, a.color, a.x, a.y, a); Object.assign(an, { ready: a.ready, muddy: a.muddy, gift: a.gift }); this.animals.push(an); }
+    for (const h of s.helpers || []) { const hut = this.things.find((o) => o.uid === h.home); if (!hut || !ROLES[h.role]) continue; const H = new Helper(h.role, h.home, hut.door[0] + 0.5, hut.door[1] + 0.6); H.paid = h.paid !== false; this.helpers.push(H); }
     this.player.x = s.px; this.player.y = s.py;
     // saved while indoors: wake up back inside the house
     const home = s.inside != null && this.things.find((o) => o.uid === s.inside);
@@ -2675,6 +2696,8 @@ const CROPS = [
   ['corn', 'Corn', 4, 24, 5, 50, 0, 5], ['pumpkin', 'Pumpkin', 5, 40, 6, 100, 0, 7], ['watermelon', 'Watermelon', 13, 45, 6, 110, 0, 7], ['grapes', 'Grapes', 21, 50, 6, 24, 2, 7],
 ].map(([id, name, row, seed, days, sell, regrow, day]) => ({ id, name, row, seed, days, sell, regrow, day }));
 const CROP = Object.fromEntries(CROPS.map((c) => [c.id, c]));
+ITEMS.fertilizer = { name: 'Fertilizer', price: 0, icon: ['Icons/Outline/Other_Icons_2_Outline', 1, 0] };
+const FERT_PRICE = 15;
 for (const c of CROPS) ITEMS[c.id] = { name: c.name, price: c.sell, icon: ['Crops/Crops', 6, c.row * 2 + 1], crop: true };
 // farmland: a 4-neighbour autotile (up, right, down, left bits) on the 16px grid
 const SOIL_TILE = { 0: [0, 0], 4: [0, 1], 5: [0, 2], 1: [0, 3], 2: [1, 3], 10: [2, 3], 8: [3, 3], 6: [1, 0], 14: [2, 0], 12: [3, 0], 7: [1, 1], 15: [2, 1], 13: [3, 1], 3: [1, 2], 11: [2, 2], 9: [3, 2] };
@@ -2690,6 +2713,7 @@ Object.assign(Game.prototype, {
   cropAt(x, y) { return this.world.inb(x, y) ? this.crops.get(this.world.idx(x, y)) : null; },
   cropStage(c) { const C = CROP[c.c]; return c.g >= C.days ? 3 : Math.min(2, Math.floor(c.g / C.days * 3)); },
   seedCount() { return Object.values(this.seeds).reduce((s, n) => s + n, 0); },
+  buyFert(n) { const cost = FERT_PRICE * n; if (this.coins < cost) return 'Not enough coins'; this.coins -= cost; this.fert = (this.fert || 0) + n; this.fertOn = true; this.sfx('coin'); this.emit('seeds'); this.emit('changed'); return null; },
   buySeeds(id, n) {
     const C = CROP[id], cost = C.seed * n;
     if (this.day < C.day) return `${C.name} seeds arrive on day ${C.day}`;
@@ -2702,7 +2726,8 @@ Object.assign(Game.prototype, {
     const C = CROP[c.c];
     if (c.g >= C.days) return `Harvest ${C.name.toLowerCase()} (${C.sell} coins)`;
     const left = C.days - c.g;
-    return wet ? `${C.name} · watered · ripe in ${left} day${left > 1 ? 's' : ''}` : `Water the ${C.name.toLowerCase()} · ${left} day${left > 1 ? 's' : ''} to go`;
+    const fz = c.f ? ' · fertilized ✨' : '';
+    return wet ? `${C.name} · watered · ripe in ${left} day${left > 1 ? 's' : ''}${fz}` : `Water the ${C.name.toLowerCase()} · ${left} day${left > 1 ? 's' : ''} to go${fz}`;
   },
   // what clicking a soil tile does: plant, water or harvest
   useSoil(x, y) {
@@ -2738,12 +2763,18 @@ Object.assign(Game.prototype, {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = W.idx(x + dx, y + dy); if (W.inb(x + dx, y + dy) && W.soil[j] && !W.wet[j]) { W.wet[j] = 1; n++; } }
       for (let k = 0; k < 8; k++) this.fx.push({ x: x + 0.5 + (Math.random() - 0.5) * 2.4, y: y + 0.5 + (Math.random() - 0.5) * 2.4, vx: 0, vy: -0.3, t: 0, life: 0.5, col: '#9fd8ff', s: 1.5 });
       this.sfx('splash'); this.stats.watered = (this.stats.watered || 0) + n;
+      // fertilizer goes on with the water: one bag covers the whole splash
+      if (this.fertOn && this.fert > 0) {
+        let any = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const c2 = this.crops.get(W.idx(x + dx, y + dy)); if (c2 && !c2.f && c2.g < CROP[c2.c].days) { c2.f = true; any++; } }
+        if (any) { this.fert--; this.stats.fertilized = (this.stats.fertilized || 0) + any; for (let k = 0; k < 10; k++) this.fx.push({ x: x + 0.5 + (Math.random() - 0.5) * 2.4, y: y + 0.5 + (Math.random() - 0.5) * 2.4, vx: 0, vy: -0.4, t: 0, life: 0.7, col: '#b8f07a', s: 1.5 }); this.emit('seeds'); }
+      }
     } };
   },
   // overnight: watered crops grow a day; then the soil dries out
   growCrops() {
     const W = this.world;
-    for (const [i, c] of this.crops) if (W.wet[i] && c.g < CROP[c.c].days) c.g++;
+    for (const [i, c] of this.crops) if (W.wet[i] && c.g < CROP[c.c].days) c.g = Math.min(CROP[c.c].days, c.g + (c.f ? 2 : 1));   // fertilized crops grow twice as fast
     W.wet.fill(0);
   },
   rainOnSoil() { const W = this.world; for (let i = 0; i < W.soil.length; i++) if (W.soil[i]) W.wet[i] = 1; },
@@ -2753,6 +2784,8 @@ Object.assign(Game.prototype, {
       if (!S(x, y)) continue;
       const m = (S(x, y - 1) ? 1 : 0) | (S(x + 1, y) ? 2 : 0) | (S(x, y + 1) ? 4 : 0) | (S(x - 1, y) ? 8 : 0), t = SOIL_TILE[m];
       R.tile(W.wet[W.idx(x, y)] ? 'Tiles/FarmLand/FarmLand_Wet_Tile' : 'Tiles/FarmLand/FarmLand_Tile', t[0] * 16, t[1] * 16, x, y);
+      const c = this.crops.get(W.idx(x, y));
+      if (c && c.f) { const g = R.g; g.fillStyle = '#c6f08a'; for (let k = 0; k < 5; k++) { const px = R.sx(x + 0.15 + hash2(x, y, k) * 0.7), py = R.sy(y + 0.2 + hash2(y, x, k + 9) * 0.65); g.fillRect(px, py, Math.ceil(R.Z), Math.ceil(R.Z)); } }
     }
   },
   drawCrop(R, i, c, t) {
@@ -2858,6 +2891,175 @@ function drawBees(R, game, t) {
     R.spr('Animals/Butterfly/Butterfly', f * 8, b.col * 8, 8, 8, b.x, b.y - 0.6 - (b.rest > 0 ? 0 : 0.3 + Math.sin(b.t * 4) * 0.1), {});
   }
 }
+
+// --------------------------------------------------------------- helpers
+// Hire townsfolk to take on chores. Each one needs a helper's cottage to live
+// in and a daily wage. You can watch them walk about and get on with their work.
+const ROLES = {
+  farmhand: { who: 'Bob', name: 'Farmhand', npc: 'Farmer_Bob', wage: 20, work: 6, desc: 'Refills hay feeders (pays the hay) and water troughs, and collects eggs from the nests.' },
+  gardener: { who: 'Buba', name: 'Gardener', npc: 'Farmer_Buba', wage: 25, work: 10, desc: 'Waters your crops every day and picks the ripe ones into your basket.' },
+  fisher: { who: 'Fin', name: 'Fisher', npc: 'Fisherman_Fin', wage: 15, work: 7, desc: 'Spends the day fishing and puts 3 to 5 fish in your basket.' },
+  lumberjack: { who: 'Jack', name: 'Lumberjack', npc: 'Lumberjack_Jack', wage: 15, work: 7, desc: 'Chops a few big trees out in the woods (never on your farm) for logs.' },
+  miner: { who: 'Mike', name: 'Miner', npc: 'Miner_Mike', wage: 15, work: 7, desc: 'Mines rocks and sparkly ores in the wild for stone and gems.' },
+  shopkeeper: { who: 'Katy', name: 'Shopkeeper', npc: 'Bartender_Katy', wage: 10, work: 7, desc: 'Minds the market stall and sells everything in your basket at 5pm.' },
+};
+const ROLE_LIST = Object.keys(ROLES);
+// a helper's cottage: the small wooden house, one helper each
+def('hut', { name: 'Helper\'s cottage', cat: 'build', price: 150, h: 3, variants: 9, beauty: 4, door: true, light: true, hut: true,
+  dims: () => [5, 3], vname: (v) => DEF.house.vname(v), desc: 'A home for one helper. Hire helpers in the Helpers tab.',
+  draw: (R, o, t, G) => DEF.house.draw(R, o, t, G) });
+TALL.hut = 4;
+
+class Helper extends Person {
+  constructor(role, home, x, y) {
+    super(x, y, [`NPCs (Premade)/${ROLES[role].npc}`]);
+    this.role = role; this.home = home; this.speed = 2.8; this.R = ROLES[role];
+    this.task = null; this.doneToday = 0; this.paid = true; this.away = true; this.wait = Math.random() * 2; this.sold = false; this.status = 'Sleeping in';
+  }
+  get name() { return this.R.who; }
+  // NPC sheets: 0-2 idle, 3-5 walk (down, side, up); a work row after that
+  draw(R, t) {
+    if (this.away) return;
+    const key = this.layers[0], A = this.task && this.task.acting ? this.task : null;
+    let row = (this.moving ? 3 : 0) + this.di, fps = this.moving ? 10 : 4;
+    if (A) { row = A.row; fps = A.fps || 8; }
+    const n = Math.max(1, rowFrames(key, 64, 64)[row] || 1);
+    const f = Math.floor((A ? A.t : this.moving ? this.t : t) * fps) % n;
+    R.spr(key, f * 64, row * 64, 64, 64, this.x, this.y, { oy: 23, flip: this.flip });
+  }
+}
+
+Object.assign(Game.prototype, {
+  hutOf(h) { return this.things.find((o) => o.uid === h.home); },
+  freeHut() { return this.things.find((o) => o.id === 'hut' && !this.helpers.some((h) => h.home === o.uid)); },
+  hire(role) {
+    const R = ROLES[role];
+    if (this.helpers.some((h) => h.role === role)) return `${R.who} already works for you`;
+    const hut = this.freeHut(); if (!hut) return 'Build a helper\'s cottage first (Buildings tab): each helper needs a home';
+    if (this.coins < R.wage) return `You need ${R.wage} coins to pay today's wage`;
+    this.coins -= R.wage;
+    const h = new Helper(role, hut.uid, hut.door[0] + 0.5, hut.door[1] + 0.6); h.away = false; h.status = 'Moving in';
+    this.helpers.push(h); this.stats.hired = (this.stats.hired || 0) + 1;
+    this.puff(h.x, h.y - 0.4, '#ffd6ec', 10); this.sfx('catch');
+    this.toast(`${R.who} the ${R.name.toLowerCase()} moved into the cottage! Wage: ${R.wage} coins a day.`, 'good'); this.emit('changed');
+    return null;
+  },
+  dismiss(role) {
+    const h = this.helpers.find((q) => q.role === role); if (!h) return;
+    this.helpers = this.helpers.filter((q) => q !== h); this.toast(`${h.name} packed up and waved goodbye.`); this.emit('changed');
+  },
+  // morning: pay everyone (or they stay home)
+  payHelpers(report) {
+    let paid = 0;
+    for (const h of this.helpers) {
+      h.doneToday = 0; h.sold = false; h.task = null; h.path = null; h.away = true; h.wait = 1 + Math.random() * 3;
+      if (this.coins >= h.R.wage) { this.coins -= h.R.wage; paid += h.R.wage; h.paid = true; }
+      else { h.paid = false; (report.unpaid = report.unpaid || []).push(h.name); }
+      const hut = this.hutOf(h); if (hut) { h.x = hut.door[0] + 0.5; h.y = hut.door[1] + 0.6; }
+    }
+    report.wages = paid;
+  },
+  // run a helper's chore, quietly if it's far away from you
+  helperDo(h, f) {
+    const far = dist(h.x, h.y, this.player.x, this.player.y) > 12, n0 = this.items.length;
+    if (far) this.muteSfx = true;
+    try { f(); } finally { this.muteSfx = false; }
+    // anything dropped goes straight into the basket
+    const got = this.items.splice(n0); for (const it of got) this.give(it.item, 1);
+    return got;
+  },
+  // what should this helper do next? a spot to stand, an animation and an effect
+  planHelper(h) {
+    const W = this.world, near = (list) => list.sort((a, b) => dist(a.x, a.y, h.x, h.y) - dist(b.x, b.y, h.x, h.y))[0];
+    const awayFromFarm = (o) => dist(o.x, o.y, W.farm.x, W.farm.y) > 15 && !this.things.some((q) => dist(q.x, q.y, o.x, o.y) < 6);
+    switch (h.role) {
+      case 'farmhand': {
+        const f = near(this.things.filter((o) => DEF[o.id].feeder && o.amount < DEF[o.id].cap * 0.6 && (DEF[o.id].feeder === 'trough' || this.coins >= 2)));
+        if (f) return { tx: f.x, ty: f.y, row: 6, dur: 1.2, status: DEF[f.id].feeder === 'trough' ? 'Filling the water trough' : 'Refilling the hay', done: () => { if (DEF[f.id].feeder === 'feeder') { if (this.coins < 2) return; this.coins -= 2; } f.amount = DEF[f.id].cap; this.puff(f.x + 1, f.y + 0.6, DEF[f.id].feeder === 'trough' ? '#7fd3ff' : '#f2cf5b', 6); } };
+        const n = near(this.things.filter((o) => o.id === 'nest' && o.eggs && o.eggs.length));
+        if (n) return { tx: n.x, ty: n.y, row: 6, dur: 1, status: 'Collecting eggs', done: () => { for (const e of n.eggs) this.give(e.item, 1); this.stats.eggs += n.eggs.length; n.eggs = []; } };
+        return null;
+      }
+      case 'gardener': {
+        const crops = [...this.crops].map(([i, c]) => ({ i, c, x: i % W.W, y: (i / W.W) | 0 }));
+        const ripe = near(crops.filter((q) => q.c.g >= CROP[q.c.c].days));
+        if (ripe) return { tx: ripe.x, ty: ripe.y, row: 6, dur: 0.8, status: 'Picking crops', done: () => { const c = this.crops.get(ripe.i); if (!c || c.g < CROP[c.c].days) return; const C = CROP[c.c]; this.give(c.c, 1); if (C.regrow) c.g = C.days - C.regrow; else this.crops.delete(ripe.i); this.stats.harvested = (this.stats.harvested || 0) + 1; this.stats['h_' + c.c] = (this.stats['h_' + c.c] || 0) + 1; } };
+        const dry = this.weather.rain < 0.3 && near(crops.filter((q) => !W.wet[q.i] && q.c.g < CROP[q.c.c].days));
+        if (dry) return { tx: dry.x, ty: dry.y, row: 10, dur: 1.2, status: 'Watering the crops', done: () => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = W.idx(dry.x + dx, dry.y + dy); if (W.inb(dry.x + dx, dry.y + dy) && W.soil[j]) W.wet[j] = 1; } } };
+        return null;
+      }
+      case 'fisher': {
+        if (h.doneToday >= 4 + (h.home % 2)) return null;
+        const s = near(this.fishSpots.slice()); if (!s) return null;
+        return { tx: s.x, ty: s.y, near: 3, row: 8, fps: 6, dur: 6 + Math.random() * 6, status: 'Fishing', done: () => { const T = FISH[W.isPond(s.x, s.y) ? 'pond' : 'sea']; let r = Math.random() * T.reduce((a, b) => a + b[1], 0), fish = T[0][0]; for (const [k, w] of T) { r -= w; if (r <= 0) { fish = k; break; } } this.give(fish, 1); this.stats.fish++; h.doneToday++; } };
+      }
+      case 'lumberjack': {
+        if (h.doneToday >= 3) return null;
+        const t = near(W.objs.filter((o) => o.kind === 'tree' && !o.stump && !o.planted && o.size === 'Big' && awayFromFarm(o)));
+        if (!t) return null;
+        return { tx: t.x, ty: t.y, row: 7, dur: 2.4, status: 'Chopping wood', done: () => { if (t.stump) return; this.helperDo(h, () => this.fell(t)); h.doneToday++; } };
+      }
+      case 'miner': {
+        if (h.doneToday >= 4) return null;
+        const r = near(W.objs.filter((o) => (o.kind === 'rock' || o.kind === 'ore') && awayFromFarm(o)));
+        if (!r) return null;
+        return { tx: r.x, ty: r.y, row: 7, dur: 2, status: 'Mining', done: () => { if (!W.objs.includes(r)) return; this.helperDo(h, () => this.breakRock(r)); h.doneToday++; } };
+      }
+      case 'shopkeeper': {
+        const st = this.things.find((o) => o.shop); if (!st) return null;
+        if (this.time >= 17 * 60 && !h.sold) return { tx: st.x + 1, ty: st.y, row: 6, dur: 1, status: 'Selling your basket', done: () => { h.sold = true; const got = this.sell(); if (got) this.toast(`${h.name} sold your basket for ${got} coins!`, 'good'); } };
+        if (dist(h.x, h.y, st.x + 1.5, st.y + 1.5) > 2.5) return { tx: st.x + 1, ty: st.y, row: 0, dur: 0.1, status: 'Minding the stall', done: () => {} };
+        return null;
+      }
+    }
+    return null;
+  },
+  updateHelpers(dt) {
+    const W = this.world, hour = this.time / 60;
+    for (const h of this.helpers) {
+      const hut = this.hutOf(h); if (!hut) continue;
+      const working = h.paid && hour >= 7 && hour < h.R.work + 12;
+      if (!working) {
+        if (h.away) { h.status = h.paid ? 'At home' : 'Not paid today, staying home'; continue; }
+        // walk home, then go inside
+        if (!h.path && dist(h.x, h.y, hut.door[0] + 0.5, hut.door[1] + 0.6) > 0.8) { h.task = null; h.path = findPath(W, Math.floor(h.x), Math.floor(h.y), hut.door[0], hut.door[1], 6000, 0, (a, b) => W.walkP(a, b)) || null; if (!h.path) { h.away = true; continue; } h.status = 'Heading home'; }
+        if (!h.path) { h.away = true; continue; }
+      } else if (h.away) { h.away = false; h.x = hut.door[0] + 0.5; h.y = hut.door[1] + 0.6; h.wait = 0.5 + Math.random(); }
+      // follow the path
+      h.moving = false;
+      if (h.path && h.path.length) {
+        const [tx, ty] = h.path[0], ex = tx + 0.5 - h.x, ey = ty + 0.6 - h.y, d = Math.hypot(ex, ey), sp = h.speed * dt;
+        if (d <= sp) { h.x = tx + 0.5; h.y = ty + 0.6; h.path.shift(); }
+        else { h.x += ex / d * sp; h.y += ey / d * sp; h.face(ex, ey); h.moving = true; h.t += dt; }
+        if (!h.path.length) h.path = null;
+        continue;
+      }
+      h.path = null;
+      if (!working) { h.away = true; continue; }
+      const T = h.task;
+      if (T && T.acting) {
+        T.t += dt;
+        if (T.t >= T.dur) { h.task = null; h.wait = 0.4 + Math.random() * 0.8; T.done(); this.emit('changed'); }
+        continue;
+      }
+      if (T && !T.acting) {
+        // arrived next to the job
+        h.dir = 'side'; h.flip = T.tx + 0.5 < h.x;
+        T.acting = true; T.t = 0; h.status = T.status; continue;
+      }
+      h.wait -= dt; if (h.wait > 0) continue;
+      const job = this.planHelper(h);
+      if (job) {
+        const p = findPath(W, Math.floor(h.x), Math.floor(h.y), job.tx, job.ty, 9000, job.near || 1, (a, b) => W.walkP(a, b));
+        if (p) { h.path = p.length ? p : null; h.task = job; h.status = job.status; continue; }
+      }
+      // nothing to do: potter about near home
+      h.status = 'Taking a little break'; h.wait = 3 + Math.random() * 4;
+      for (let k = 0; k < 8; k++) { const x = hut.door[0] + Math.floor(Math.random() * 9) - 4, y = hut.door[1] + 1 + Math.floor(Math.random() * 4); if (W.walkP(x, y)) { h.path = findPath(W, Math.floor(h.x), Math.floor(h.y), x, y, 2000, 0, (a, b) => W.walkP(a, b)); break; } }
+    }
+  },
+  helperAt(wx, wy) { return this.helpers.find((h) => !h.away && dist(wx, wy, h.x, h.y - 0.6) < 0.7); },
+});
 
 // ------------------------------------------------------------- interiors
 // Click a cottage door: fade to black, and you're inside a room floating in a
@@ -3180,10 +3382,11 @@ function installUI(game, app) {
   });
   // ---- tool buttons
   const toolIcon = (sel, key, cx, cy) => { const c = $(sel + ' canvas'), g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(IMG[key], cx * 16, cy * 16, 16, 16, 0, 0, 16, 16); };
-  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
+  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3); toolIcon('#bMap', 'Crops/Crops', 0, 29);
   $('#bShop').onclick = () => ui.openShop('animals');
   $('#bDex').onclick = () => ui.openDex();
   $('#bQuest').onclick = () => ui.openQuests();
+  $('#bMap').onclick = () => ui.openMap();
   $('#bBag').onclick = () => ui.openShop('sell');
   for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('.modal').classList.add('hidden');
   for (const m of document.querySelectorAll('.modal')) m.addEventListener('pointerdown', (e) => { if (e.target === m) m.classList.add('hidden'); });
@@ -3235,6 +3438,39 @@ function installUI(game, app) {
       d.onclick = () => { if (n.thing) app.use(n.thing); else if (n.soil) app.walk(n.soil[0] + 0.5, n.soil[1] + 0.5); };
       box.appendChild(d);
     }
+  };
+  // the island map (M): terrain, your buildings, animals, helpers and you
+  ui.openMap = () => {
+    const W = game.world, S = 6, cv = $('#mapCv'); cv.width = W.W * S; cv.height = W.H * S;
+    const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    const COL = { water: '#3d9be0', pond: '#62b8ef', sand: '#ecc996', grass: '#78bf4c', grass2: '#6cb243', path: '#d9a066', soil: '#9b6343' };
+    for (let y = 0; y < W.H; y++) for (let x = 0; x < W.W; x++) {
+      const i = W.idx(x, y), t = W.ter[i];
+      g.fillStyle = W.soil[i] ? COL.soil : W.path[i] ? COL.path : t === WATER ? (W.pond[i] ? COL.pond : COL.water) : t === SAND ? COL.sand : ((x + y) % 2 ? COL.grass : COL.grass2);
+      g.fillRect(x * S, y * S, S, S);
+    }
+    // foam along the beach
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    for (let y = 0; y < W.H; y++) for (let x = 0; x < W.W; x++) if (W.ter[W.idx(x, y)] === WATER && !W.pond[W.idx(x, y)] && W.nearType(x, y, 1, (q) => q !== WATER)) g.fillRect(x * S + 1, y * S + 1, S - 2, S - 2);
+    for (const o of W.objs) {
+      if (o.kind === 'tree') { g.fillStyle = o.stump ? '#8a6a4a' : o.tree === 'Birch' ? '#e0b44a' : o.tree === 'Spruce' ? '#2f6b4a' : '#3f8f3a'; g.beginPath(); g.arc(o.x * S + S / 2, o.y * S + S / 2, o.stump ? S * 0.3 : S * 0.75, 0, 7); g.fill(); }
+      else if (o.kind === 'rock' || o.kind === 'ore') { g.fillStyle = o.kind === 'ore' ? '#b48ad8' : '#a7a7a0'; g.fillRect(o.x * S + 1, o.y * S + 1, S - 2, S - 2); }
+      else if (o.kind === 'flower') { g.fillStyle = '#ff9ec4'; g.fillRect(o.x * S + 2, o.y * S + 2, 2, 2); }
+    }
+    for (const o of game.things) {
+      const D = DEF[o.id], big = (TALL[o.id] || 0) >= 3;
+      g.fillStyle = o.shop ? '#e8606a' : o.id === 'house' ? '#f17ea5' : D.hut ? '#ffb86b' : D.home ? '#b5523a' : big ? '#8a5a3c' : D.conn ? '#6b4528' : D.feeder ? '#c9d2dc' : '#ffd1e3';
+      g.fillRect(o.x * S, (o.y - (big ? 1 : 0)) * S, o.w * S, (o.h + (big ? 1 : 0)) * S);
+      if (big) { g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(o.x * S, (o.y + o.h) * S - 2, o.w * S, 2); }
+    }
+    const dot = (x, y, r, fill, ring) => { g.beginPath(); g.arc(x * S, y * S, r, 0, 7); g.fillStyle = fill; g.fill(); if (ring) { g.lineWidth = 2; g.strokeStyle = ring; g.stroke(); } };
+    for (const a of game.animals) if (!a.wild) dot(a.x, a.y, 2.5, '#fff7e8', '#6b4528');
+    for (const h of game.helpers) if (!h.away) dot(h.x, h.y, 4, '#ffd23a', '#6b4528');
+    const P0 = game.player; dot(P0.x, P0.y, 6, '#f17ea5', '#fff');
+    $('#mapTitle').textContent = `Map of ${game.farmName}`;
+    const L = [['#f17ea5', 'You & your house'], ['#e8606a', 'Market stall'], ['#b5523a', 'Coops & barns'], ['#ffb86b', 'Helper cottages'], ['#ffd23a', 'Helpers'], ['#fff7e8', 'Your animals'], ['#9b6343', 'Fields'], ['#62b8ef', 'Ponds'], ['#3f8f3a', 'Trees'], ['#a7a7a0', 'Rocks'], ['#b48ad8', 'Gems']];
+    $('#mapLegend').innerHTML = L.map(([c, n]) => `<span><i style="background:${c}"></i>${n}</span>`).join('') + '<span>Press <b>M</b> to close</span>';
+    $('#map').classList.remove('hidden');
   };
   ui.openQuests = () => {
     const body = $('#qBody'); body.innerHTML = '';
@@ -3316,6 +3552,7 @@ function installUI(game, app) {
     const body = $('#shopBody'); body.innerHTML = '';
     if (shopTab === 'sell') return ui.renderSell(body);
     if (shopTab === 'seeds') return ui.renderSeeds(body);
+    if (shopTab === 'helpers') return ui.renderHelpers(body);
     const grid = el('div', 'grid'); body.appendChild(grid);
     if (shopTab === 'animals') {
       for (const sk of FARM_SPECIES) {
@@ -3364,8 +3601,34 @@ function installUI(game, app) {
     }
     $('#shopFoot').innerHTML = `<span>${shopTab === 'animals' ? 'New animals arrive at their home.' : 'Things you buy go into your bag. Press <b>B</b> (or Build) to place them whenever you like.'}</span><span>${coinHtml(game.coins)}</span>`;
   };
+  ui.renderHelpers = (body) => {
+    const huts = game.things.filter((o) => o.id === 'hut').length, free = game.freeHut();
+    body.appendChild(el('p', 'ds', `Helpers do chores for a daily wage, paid each morning. Each one needs their own <b>helper's cottage</b> (Buildings tab). You have ${huts} cottage${huts === 1 ? '' : 's'}${huts ? `, ${free ? 'with room for another helper' : 'all full'}` : ''}.`));
+    const grid = el('div', 'grid'); body.appendChild(grid);
+    for (const role of ROLE_LIST) {
+      const R = ROLES[role], h = game.helpers.find((q) => q.role === role), item = el('div', 'shopitem');
+      const cv = el('canvas'); cv.width = 48; cv.height = 48; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; const im = IMG[`NPCs (Premade)/${R.npc}`]; if (im) g.drawImage(im, 13, 9, 38, 38, 0, 0, 48, 48);
+      item.appendChild(cv); item.appendChild(el('div', 'nm', `${R.who} the ${R.name.toLowerCase()}`));
+      item.appendChild(el('div', 'ds', R.desc));
+      item.appendChild(el('div', 'own', h ? `Working for you · ${h.status}` : `${R.wage} coins a day`));
+      const b = el('button', 'btn' + (h ? '' : ' go'), h ? 'Say goodbye' : `Hire · ${coinHtml(R.wage)}`);
+      b.disabled = !h && (!free || game.coins < R.wage);
+      b.onclick = () => { if (h) { ask(`Let ${R.who} go?`, { yes: 'Say goodbye', no: 'Keep' }).then((ok) => { if (ok) { game.dismiss(role); ui.renderShop(); } }); return; } const r = game.hire(role); if (r) game.toast(r, 'bad'); ui.renderShop(); ui.hud(); };
+      item.appendChild(b); grid.appendChild(item);
+    }
+    $('#shopFoot').innerHTML = `<span>Wages today: ${coinHtml(game.helpers.reduce((s, h) => s + h.R.wage, 0))} a day in total</span><span>${coinHtml(game.coins)}</span>`;
+  };
   ui.renderSeeds = (body) => {
     const grid = el('div', 'grid'); body.appendChild(grid);
+    {
+      const item = el('div', 'shopitem' + (game.coins < FERT_PRICE ? ' poor' : '')), cv = el('canvas'); cv.width = 48; cv.height = 48; paintIcon(cv, 'fertilizer'); item.appendChild(cv);
+      item.appendChild(el('div', 'nm', 'Fertilizer'));
+      item.appendChild(el('div', 'ds', 'Crops grow twice as fast. Switch it on in the planting bar; each watering spreads one bag over the 3×3 splash.'));
+      item.appendChild(el('div', 'own', game.fert ? `${game.fert} bag${game.fert > 1 ? 's' : ''} in your pocket` : '&nbsp;'));
+      const buys = el('div', 'buys');
+      for (const n of [1, 5]) { const b = el('button', 'btn go', n === 1 ? coinHtml(FERT_PRICE) : '×5'); b.disabled = game.coins < FERT_PRICE * n; b.onclick = () => { const r = game.buyFert(n); if (r) game.toast(r, 'bad'); ui.renderShop(); ui.hud(); ui.seedBar(); }; buys.appendChild(b); }
+      item.appendChild(buys); grid.appendChild(item);
+    }
     for (const C of CROPS) {
       const locked = game.day < C.day, item = el('div', 'shopitem' + (game.coins < C.seed || locked ? ' poor' : ''));
       const cv = el('canvas'); cv.width = 48; cv.height = 48; item.appendChild(cv); paintIcon(cv, C.id);
@@ -3385,15 +3648,23 @@ function installUI(game, app) {
   // the seed you'll plant next, with a picker
   ui.seedBar = () => {
     const bar = $('#seedBar'), pick = $('#seedPick'), have = Object.keys(game.seeds).filter((k) => game.seeds[k] > 0);
-    const show = game.started !== false && have.length && !game.inside && ui.nearSoil;
+    const show = game.started !== false && (have.length || game.fert > 0) && !game.inside && ui.nearSoil;
     bar.classList.toggle('hidden', !show); if (!show) { pick.classList.add('hidden'); return; }
-    if (!(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
-    const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length;
+    if (have.length && !(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
+    const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length + ':' + game.fert + ':' + game.fertOn;
     if (bar.dataset.k === key) return; bar.dataset.k = key;
     bar.innerHTML = '';
-    const cv = el('canvas'); cv.width = 32; cv.height = 32; paintIcon(cv, game.seedSel);
-    bar.appendChild(el('span', '', 'Planting')); bar.appendChild(cv); bar.appendChild(el('b', '', `${CROP[game.seedSel].name} ×${game.seeds[game.seedSel]}`));
-    if (have.length > 1) { const b = el('button', 'btn', 'Change'); b.onclick = () => { pick.classList.toggle('hidden'); ui.seedPicker(); }; bar.appendChild(b); }
+    if (have.length) {
+      const cv = el('canvas'); cv.width = 32; cv.height = 32; paintIcon(cv, game.seedSel);
+      bar.appendChild(el('span', '', 'Planting')); bar.appendChild(cv); bar.appendChild(el('b', '', `${CROP[game.seedSel].name} ×${game.seeds[game.seedSel]}`));
+      if (have.length > 1) { const b = el('button', 'btn', 'Change'); b.onclick = () => { pick.classList.toggle('hidden'); ui.seedPicker(); }; bar.appendChild(b); }
+    }
+    if (game.fert > 0) {
+      const f = el('button', 'btn' + (game.fertOn ? ' go' : ''), `🌿 Fertilizer ×${game.fert}: ${game.fertOn ? 'on' : 'off'}`);
+      f.title = 'When on, watering also spreads fertilizer: those crops grow twice as fast';
+      f.onclick = () => { game.fertOn = !game.fertOn; bar.dataset.k = ''; ui.seedBar(); };
+      bar.appendChild(f);
+    }
     if (!pick.classList.contains('hidden')) ui.seedPicker();
   };
   ui.seedPicker = () => {
@@ -3459,6 +3730,8 @@ function installUI(game, app) {
     }
     body.appendChild(el('p', '', r.produce ? `${r.produce} of your animals ${r.produce > 1 ? 'are' : 'is'} ready to give you something today.` : 'Feed, water and pat your animals so they have something for you tomorrow.'));
     if (r.unhappy.length) body.appendChild(el('p', '', `${r.unhappy.slice(0, 3).map((a) => a.name).join(', ')} ${r.unhappy.length > 1 ? 'were' : 'was'} a bit sad yesterday.`));
+    if (r.wages) body.appendChild(el('p', '', `You paid your helpers ${r.wages} coins in wages.`));
+    if (r.unpaid) body.appendChild(el('p', '', `There wasn't enough money to pay ${r.unpaid.join(' and ')}, so they're staying home today.`));
     if (r.full) body.appendChild(el('p', '', `Some of your ${[...new Set(r.full)].map((sk) => SPECIES[sk].plural.toLowerCase()).join(' and ')} wanted a baby, but there's no room at home. Build another ${r.full.some((sk) => SPECIES[sk].home === 'barn') ? 'barn' : 'coop'}!`));
     if (game.weather.raining) body.appendChild(el('p', '', 'It looks like rain later. The troughs will fill themselves, and the rain waters your crops!'));
     else if (game.weather.kind === 'windy') body.appendChild(el('p', '', 'A breezy day today. Hold on to your hat!'));
@@ -3847,6 +4120,7 @@ function installBuild(game, app, ui) {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { if (build.carry) build.cancelCarry(); game.undo(); ui.hud(); build.refresh(); e.preventDefault(); return; }
     const modalOpen = document.querySelector('.modal:not(.hidden)');
     if (e.code === 'KeyB' && !modalOpen) { build.toggle(); e.preventDefault(); return; }
+    if (e.code === 'KeyM' && !build.on) { const open = !$('#map').classList.contains('hidden'); if (open) $('#map').classList.add('hidden'); else if (!modalOpen) ui.openMap(); e.preventDefault(); return; }
     if (build.on && !modalOpen && build.key(e)) { e.preventDefault(); return; }
     if (e.code === 'Escape') { if (modalOpen) { for (const m of document.querySelectorAll('.modal')) m.classList.add('hidden'); } else if (sel) app.select(null); else if (app.pause) app.pause(); }
   });
@@ -3882,6 +4156,7 @@ function installBuild(game, app, ui) {
     // a line in the water: clicking reels in
     if (game.fishing && game.fishing.state !== 'cast') { game.reel(); return; }
     // what did we click? animals first, then items, then things
+    const hp = game.helperAt(wx, wy); if (hp) { game.toast(`${hp.name} the ${hp.R.name.toLowerCase()}: ${hp.status}.`); return; }
     const bug = game.bugAt(wx, wy); if (bug) { walkTo(bug.x, bug.y, 2.2, () => { if (game.bugs.includes(bug)) game.admireBug(bug); else game.toast('It fluttered away!'); }); return; }
     let best = null, bd = 0.9;
     for (const a of game.animals) { if (a.capy === 'Under') continue; const d = dist(wx, wy, a.x, a.y - 0.45 * (a.sp.size || 1)); if (d < bd) { bd = d; best = a; } }
@@ -4074,6 +4349,7 @@ function installBuild(game, app, ui) {
     for (const it of game.items) list.push([it.y, () => drawItem(it)]);
     for (const [i, c] of game.crops) { const cx = i % game.world.W, cy = (i / game.world.W) | 0; if (cx > x0 - 1 && cx < x1 + 1 && cy > y0 - 1 && cy < y1 + 3) list.push([cy + 0.45, () => game.drawCrop(R, i, c, time)]); }
     if (game.started) list.push([game.player.y, () => game.player.draw(R, time)]);
+    for (const h of game.helpers || []) if (!h.away && h.x > x0 - 2 && h.x < x1 + 2 && h.y > y0 - 2 && h.y < y1 + 3) list.push([h.y, () => h.draw(R, time)]);
     list.sort((p, q) => p[0] - q[0]);
     for (const [, f] of list) f();
     drawBees(R, game, time);
@@ -4162,6 +4438,7 @@ function installBuild(game, app, ui) {
   }
   function hoverAt(px, py) {
     const [wx, wy] = R.toWorld(px, py);
+    const hp = game.helperAt(wx, wy); if (hp) return { label: `${hp.name} the ${hp.R.name.toLowerCase()} · ${hp.status}` };
     const bug = game.bugAt(wx, wy); if (bug) { const c = SPECIES.butterfly.colors[bug.col], seen = (game.dex.butterfly || []).includes(bug.col); return { label: seen ? `${c.name} butterfly` : 'A butterfly! Click to take a look' }; }
     let best = null, bd = 0.9;
     for (const a of game.animals) { if (a.capy === 'Under') continue; const d = dist(wx, wy, a.x, a.y - 0.45 * (a.sp.size || 1)); if (d < bd) { bd = d; best = a; } }

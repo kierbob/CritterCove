@@ -13,6 +13,8 @@ const CROPS = [
   ['corn', 'Corn', 4, 24, 5, 50, 0, 5], ['pumpkin', 'Pumpkin', 5, 40, 6, 100, 0, 7], ['watermelon', 'Watermelon', 13, 45, 6, 110, 0, 7], ['grapes', 'Grapes', 21, 50, 6, 24, 2, 7],
 ].map(([id, name, row, seed, days, sell, regrow, day]) => ({ id, name, row, seed, days, sell, regrow, day }));
 const CROP = Object.fromEntries(CROPS.map((c) => [c.id, c]));
+ITEMS.fertilizer = { name: 'Fertilizer', price: 0, icon: ['Icons/Outline/Other_Icons_2_Outline', 1, 0] };
+const FERT_PRICE = 15;
 for (const c of CROPS) ITEMS[c.id] = { name: c.name, price: c.sell, icon: ['Crops/Crops', 6, c.row * 2 + 1], crop: true };
 // farmland: a 4-neighbour autotile (up, right, down, left bits) on the 16px grid
 const SOIL_TILE = { 0: [0, 0], 4: [0, 1], 5: [0, 2], 1: [0, 3], 2: [1, 3], 10: [2, 3], 8: [3, 3], 6: [1, 0], 14: [2, 0], 12: [3, 0], 7: [1, 1], 15: [2, 1], 13: [3, 1], 3: [1, 2], 11: [2, 2], 9: [3, 2] };
@@ -28,6 +30,7 @@ Object.assign(Game.prototype, {
   cropAt(x, y) { return this.world.inb(x, y) ? this.crops.get(this.world.idx(x, y)) : null; },
   cropStage(c) { const C = CROP[c.c]; return c.g >= C.days ? 3 : Math.min(2, Math.floor(c.g / C.days * 3)); },
   seedCount() { return Object.values(this.seeds).reduce((s, n) => s + n, 0); },
+  buyFert(n) { const cost = FERT_PRICE * n; if (this.coins < cost) return 'Not enough coins'; this.coins -= cost; this.fert = (this.fert || 0) + n; this.fertOn = true; this.sfx('coin'); this.emit('seeds'); this.emit('changed'); return null; },
   buySeeds(id, n) {
     const C = CROP[id], cost = C.seed * n;
     if (this.day < C.day) return `${C.name} seeds arrive on day ${C.day}`;
@@ -40,7 +43,8 @@ Object.assign(Game.prototype, {
     const C = CROP[c.c];
     if (c.g >= C.days) return `Harvest ${C.name.toLowerCase()} (${C.sell} coins)`;
     const left = C.days - c.g;
-    return wet ? `${C.name} · watered · ripe in ${left} day${left > 1 ? 's' : ''}` : `Water the ${C.name.toLowerCase()} · ${left} day${left > 1 ? 's' : ''} to go`;
+    const fz = c.f ? ' · fertilized ✨' : '';
+    return wet ? `${C.name} · watered · ripe in ${left} day${left > 1 ? 's' : ''}${fz}` : `Water the ${C.name.toLowerCase()} · ${left} day${left > 1 ? 's' : ''} to go${fz}`;
   },
   // what clicking a soil tile does: plant, water or harvest
   useSoil(x, y) {
@@ -76,12 +80,18 @@ Object.assign(Game.prototype, {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = W.idx(x + dx, y + dy); if (W.inb(x + dx, y + dy) && W.soil[j] && !W.wet[j]) { W.wet[j] = 1; n++; } }
       for (let k = 0; k < 8; k++) this.fx.push({ x: x + 0.5 + (Math.random() - 0.5) * 2.4, y: y + 0.5 + (Math.random() - 0.5) * 2.4, vx: 0, vy: -0.3, t: 0, life: 0.5, col: '#9fd8ff', s: 1.5 });
       this.sfx('splash'); this.stats.watered = (this.stats.watered || 0) + n;
+      // fertilizer goes on with the water: one bag covers the whole splash
+      if (this.fertOn && this.fert > 0) {
+        let any = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const c2 = this.crops.get(W.idx(x + dx, y + dy)); if (c2 && !c2.f && c2.g < CROP[c2.c].days) { c2.f = true; any++; } }
+        if (any) { this.fert--; this.stats.fertilized = (this.stats.fertilized || 0) + any; for (let k = 0; k < 10; k++) this.fx.push({ x: x + 0.5 + (Math.random() - 0.5) * 2.4, y: y + 0.5 + (Math.random() - 0.5) * 2.4, vx: 0, vy: -0.4, t: 0, life: 0.7, col: '#b8f07a', s: 1.5 }); this.emit('seeds'); }
+      }
     } };
   },
   // overnight: watered crops grow a day; then the soil dries out
   growCrops() {
     const W = this.world;
-    for (const [i, c] of this.crops) if (W.wet[i] && c.g < CROP[c.c].days) c.g++;
+    for (const [i, c] of this.crops) if (W.wet[i] && c.g < CROP[c.c].days) c.g = Math.min(CROP[c.c].days, c.g + (c.f ? 2 : 1));   // fertilized crops grow twice as fast
     W.wet.fill(0);
   },
   rainOnSoil() { const W = this.world; for (let i = 0; i < W.soil.length; i++) if (W.soil[i]) W.wet[i] = 1; },
@@ -91,6 +101,8 @@ Object.assign(Game.prototype, {
       if (!S(x, y)) continue;
       const m = (S(x, y - 1) ? 1 : 0) | (S(x + 1, y) ? 2 : 0) | (S(x, y + 1) ? 4 : 0) | (S(x - 1, y) ? 8 : 0), t = SOIL_TILE[m];
       R.tile(W.wet[W.idx(x, y)] ? 'Tiles/FarmLand/FarmLand_Wet_Tile' : 'Tiles/FarmLand/FarmLand_Tile', t[0] * 16, t[1] * 16, x, y);
+      const c = this.crops.get(W.idx(x, y));
+      if (c && c.f) { const g = R.g; g.fillStyle = '#c6f08a'; for (let k = 0; k < 5; k++) { const px = R.sx(x + 0.15 + hash2(x, y, k) * 0.7), py = R.sy(y + 0.2 + hash2(y, x, k + 9) * 0.65); g.fillRect(px, py, Math.ceil(R.Z), Math.ceil(R.Z)); } }
     }
   },
   drawCrop(R, i, c, t) {

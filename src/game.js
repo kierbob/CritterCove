@@ -122,6 +122,10 @@ const GOALS = [
     how: 'Buy furniture in the Home tab, click your house to go inside, then press B.' },
   { text: 'Build a big barn', reward: 60, prog: (g) => [g.things.some((o) => o.id === 'barn') ? 1 : 0, 1], target: qThing('stall'),
     how: 'Barns are in the Buildings tab. Place it with B, with space in front of the door.' },
+  { text: 'Build a helper\'s cottage', reward: 40, prog: (g) => [g.things.some((o) => o.id === 'hut') ? 1 : 0, 1], target: qThing('stall'),
+    how: 'Helpers need somewhere to live. Cottages are in the Buildings tab at the market.' },
+  { text: 'Hire a helper', reward: 50, prog: (g) => [g.helpers.length, 1], target: qThing('stall'),
+    how: 'Open the Helpers tab at the market. A farmhand keeps the feeders and troughs full for you.' },
   { text: 'Welcome a sheep or a cow', reward: 40, prog: (g) => [g.animals.some((a) => a.sk === 'sheep' || a.sk === 'cow') ? 1 : 0, 1], target: qThing('stall'),
     how: 'Buy one from the Animals tab. Give the barn its own hay feeder and water trough.' },
   { text: 'Spot 3 colours of butterfly', reward: 30, prog: (g) => [(g.dex.butterfly || []).length, 3], target: (g) => { const b = (g.bugs || [])[0]; return b && { x: b.x, y: b.y - 1.6 }; },
@@ -130,6 +134,8 @@ const GOALS = [
     how: 'Feed, water and pat two animals of the same kind every day. Happy pairs have babies if there\'s room at home.' },
   { text: 'Harvest 40 crops', reward: 60, prog: (g) => [g.stats.harvested || 0, 40], target: qSoil((g, i) => g.crops.has(i) && g.crops.get(i).g >= CROP[g.crops.get(i).c].days),
     how: 'Bigger fields mean bigger harvests. Farm soil is in the Farm tab.' },
+  { text: 'Fertilize 10 crops', reward: 40, prog: (g) => [g.stats.fertilized || 0, 10],
+    how: 'Buy fertilizer in the Seeds tab, switch it on in the planting bar, then water your crops.' },
   { text: 'Grow a pumpkin or a watermelon', reward: 80, prog: (g) => [(g.stats.h_pumpkin || 0) + (g.stats.h_watermelon || 0), 1],
     how: 'Their seeds arrive at the market on day 7. They need 6 watered days to grow.' },
   { text: 'Adopt a capybara', reward: 80, prog: (g) => [g.animals.some((a) => a.adopted && a.sk === 'capybara') ? 1 : 0, 1], target: qWild('capybara'),
@@ -150,13 +156,15 @@ const GOALS = [
     how: 'Keep decorating! Fountains and windmills are extra pretty.' },
   { text: 'Find 5 colours of one farm animal', reward: 250, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length)), 5],
     how: 'Buy a few of one kind and let them have babies. The market sells the common colours.' },
+  { text: 'Run a little town: hire 4 helpers', reward: 200, prog: (g) => [g.helpers.length, 4],
+    how: 'Every helper needs their own cottage and a daily wage.' },
   { text: 'Earn 10,000 coins in total', reward: 400, prog: (g) => [g.stats.earned || 0, 10000],
     how: 'You\'re a farming pro now. Keep it up!' },
   { text: 'Complete a whole Critterdex page', reward: 500, prog: (g) => [Math.max(0, ...FARM_SPECIES.map((sk) => (g.dex[sk] || []).length / SPECIES[sk].colors.length)) * 100 | 0, 100],
     how: 'Collect every colour of one animal. Horses (5) and ducks (5) have the smallest pages.' },
 ];
 for (const G of GOALS) G.done = (g) => { const [a, b] = G.prog(g); return a >= b; };
-const CATS = [['animals', 'Animals'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
+const CATS = [['animals', 'Animals'], ['helpers', 'Helpers'], ['seeds', 'Seeds'], ['farm', 'Farm'], ['deco', 'Decor'], ['build', 'Buildings'], ['home', 'Home'], ['sell', 'Sell']];
 
 // ---------------------------------------------------------------- game
 class Game {
@@ -166,7 +174,7 @@ class Game {
     this.world = new World(this.seed);
     this.things = [];                        // placed buildings + decor
     this.animals = []; this.items = []; this.fx = []; this.floats = [];
-    this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
+    this.coins = 80; this.bag = { flower: 6, fence: 12, gate: 1, path: 10, lamp: 1 }; this.inv = {}; this.helpers = []; this.fert = 0; this.crops = new Map(); this.seeds = { wheat: 4, carrot: 2 }; this.seedSel = 'wheat'; this.dex = {}; this.day = 1; this.time = 7 * 60;
     this.weather = { rain: 0, raining: false, kind: 'sunny', clouds: 0.15, wind: 0.2 }; this.dayTruffles = 0; this.stats = { sold: 0, born: 0, eggs: 0 }; this.goal = 0; this.goalT = 0;
     this.listeners = {}; this.farmName = opts.farmName || 'Sunny Acres'; this.slot = opts.slot || 1;
     this.player = new Player(this.world.farm.x + 0.5, this.world.farm.y + 4.6, opts.look);
@@ -317,6 +325,7 @@ class Game {
     if (o.shop) return this.toast('The market stall can\'t go in your bag, but you can Move it anywhere you like.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep! Move it instead.', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Animals live here. Use Move to put their home somewhere else.', 'bad');
+    if (DEF[o.id].hut && this.helpers.some((h) => h.home === o.uid)) return this.toast('A helper lives here. Use Move instead.', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o); this.put(o.id);
     if (o.eggs) for (const e of o.eggs) this.give(e.item, 1);
     this.recordUndo({ type: 'store', o }); this.puff(o.x + o.w / 2, o.y + o.h, '#ffffff', 8); this.sfx('pop'); this.emit('changed');
@@ -336,6 +345,7 @@ class Game {
     if (o.shop) return this.toast('The market stall is where you shop, so it can\'t be destroyed. Use Move to put it somewhere else.', 'bad');
     if (o.id === 'house' && this.things.filter((q) => q.id === 'house').length <= 1) return this.toast('You need somewhere to sleep!', 'bad');
     if (DEF[o.id].home && this.animals.some((a) => a.home === o.uid)) return this.toast('Some animals live here. Move them first by building another home.', 'bad');
+    if (DEF[o.id].hut && this.helpers.some((h) => h.home === o.uid)) return this.toast('A helper lives here. Dismiss them first (Helpers tab).', 'bad');
     this.stampThing(o, false); this.things = this.things.filter((q) => q !== o);
     this.coins += Math.floor(DEF[o.id].price / 2); this.recordUndo({ type: 'remove', o }); this.puff(o.x + o.w / 2, o.y + o.h, '#ffffff', 8); this.sfx('pop');
     if (o.eggs) for (const e of o.eggs) this.dropItem(e.item, o.x + 0.5, o.y + 1);
@@ -441,6 +451,7 @@ class Game {
   useThing(o) {
     const D = DEF[o.id];
     if (o.shop) return this.emit('shop');
+    if (D.hut) { const h = this.helpers.find((q) => q.home === o.uid); return this.toast(h ? `${h.name} the ${h.R.name.toLowerCase()} lives here. ${h.status}.` : 'An empty helper\'s cottage. Hire a helper in the Helpers tab at the market.'); }
     if (o.id === 'house') return this.emit('enter', o);
     if (D.hive) return this.useHive(o);
     if (D.feeder === 'feeder') { if (o.amount >= D.cap) return this.toast('It\'s already full.'); if (this.coins < 2) return this.toast('Refilling costs 2 coins.', 'bad'); this.coins -= 2; o.amount = D.cap; this.puff(o.x + 1, o.y + 0.6, '#f2cf5b', 8); this.sfx('fill'); return; }
@@ -536,6 +547,7 @@ class Game {
     if (this.weather.rain > 0.5) { for (const o of this.things) if (DEF[o.id].feeder === 'trough') o.amount = DEF[o.id].cap; if (!this.rained) { this.rained = true; this.rainOnSoil(); } } else this.rained = false;
     for (const a of this.animals) a.update(dt, this);
     this.updateBugs(dt);
+    if (this.started) this.updateHelpers(dt);
     this.updateFishing(dt);
     this.growTrees(dt);
     for (const o of this.world.objs) { if (o.shake > 0) o.shake -= dt; if (o.fallT > 0) o.fallT -= dt * 1.4; }
@@ -615,7 +627,7 @@ class Game {
     }
     for (const o of this.things) if (DEF[o.id].feeder === 'trough' && this.weather.raining) o.amount = DEF[o.id].cap;
     this.day++;
-    this.growCrops(); this.hiveMorning(); this.regrowIsland(); this.time = 6 * 60; this.dayTruffles = 0;
+    this.growCrops(); this.hiveMorning(); this.payHelpers(report); this.regrowIsland(); this.time = 6 * 60; this.dayTruffles = 0;
     // weather: about one day in four has a shower
     const rnd = mulberry32(this.seed + this.day * 31)();
     this.weather.raining = rnd < 0.25 && this.day > 2; this.weather.from = 8 * 60 + rnd * 600; this.weather.to = this.weather.from + 120 + rnd * 300;
@@ -651,19 +663,19 @@ class Game {
   puff(x, y, col, n = 4) { for (let i = 0; i < n; i++) this.fx.push({ x: x + (Math.random() - 0.5) * 0.4, y: y - Math.random() * 0.2, vx: (Math.random() - 0.5) * 1.6, vy: -Math.random() * 1.2, g: 2, t: 0, life: 0.5 + Math.random() * 0.3, col, s: 1 + Math.random() }); }
   heart(x, y) { this.fx.push({ x, y, vx: 0, vy: -0.9, t: 0, life: 1.1, heart: true }); }
   float(x, y, text, col) { this.floats.push({ x, y, text, col: col || '#fff7d6', t: 0 }); }
-  sfx(name) { this.emit('sfx', name); }
+  sfx(name) { if (!this.muteSfx) this.emit('sfx', name); }
 
   // --------------------------------------------------------------- saving
   serialize() {
     const W = this.world;
     return {
-      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, dex: this.dex, day: this.day, time: this.time, stats: this.stats,
+      v: 1, seed: this.seed, farmName: this.farmName, goal: this.goal, bag: this.bag, coins: this.coins, inv: this.inv, snacks: this.snacks || 0, fert: this.fert || 0, helpers: this.helpers.map((h) => ({ role: h.role, home: h.home, paid: h.paid })), dex: this.dex, day: this.day, time: this.time, stats: this.stats,
       look: this.player.look, px: this.player.x, py: this.player.y, inside: this.inside ? this.inside.house.uid : null, nextUid: this.nextUid,
       things: this.things.map((o) => ({ uid: o.uid, id: o.id, x: o.x, y: o.y, v: o.v, amount: o.amount, eggs: o.eggs, shop: o.shop, room: o.room, honey: o.honey })),
       paths: [...W.path.keys()].filter((i) => W.path[i]),
       dug: [...W.dug.keys()].filter((i) => W.dug[i]),
       soil: [...W.soil.keys()].filter((i) => W.soil[i]), wet: [...W.wet.keys()].filter((i) => W.wet[i]),
-      crops: [...this.crops].map(([i, c]) => [i, c.c, c.g]), seeds: this.seeds, seedSel: this.seedSel,
+      crops: [...this.crops].map(([i, c]) => [i, c.c, c.g, c.f ? 1 : 0]), fertOn: this.fertOn !== false, seeds: this.seeds, seedSel: this.seedSel,
       objs: this.world.objs.map((o) => { const c = Object.assign({}, o); delete c.shake; return c; }),
       fishDex: this.fishDex, tut: this.tut,
       animals: this.animals.filter((a) => !a.wild).map((a) => ({ id: a.id, sk: a.sk, color: a.color, name: a.name, x: a.x, y: a.y, age: a.age, friend: a.friend, happy: a.happy, home: a.home, ready: a.ready, muddy: a.muddy, hunger: a.hunger, thirst: a.thirst, adopted: a.adopted, hx: a.hx, hy: a.hy, gift: a.gift })),
@@ -673,7 +685,7 @@ class Game {
   save() { store.set(SLOT_KEY(this.slot || 1), this.serialize()); }
   load(s) {
     const W = this.world;
-    this.farmName = s.farmName; this.goal = s.goal || 0; this.bag = s.bag || {}; this.coins = s.coins; this.inv = s.inv || {}; this.snacks = s.snacks || 0;
+    this.farmName = s.farmName; this.goal = s.goal || 0; this.bag = s.bag || {}; this.coins = s.coins; this.inv = s.inv || {}; this.snacks = s.snacks || 0; this.fert = s.fert || 0;
     for (const k of Object.keys(this.bag)) if (!DEF[k]) { this.coins += (k === 'kitchenset' ? 140 : k === 'kitchen' ? 90 : 0) * this.bag[k]; delete this.bag[k]; }   // retired items: refund
     this.dex = s.dex || {}; this.day = s.day; this.time = s.time; this.stats = Object.assign(this.stats, s.stats || {});
     this.nextUid = s.nextUid || 1; Object.assign(this.weather, s.weather || {});
@@ -686,7 +698,8 @@ class Game {
     for (const i of s.dug || []) this.setPond(i % W.W, (i / W.W) | 0, true);
     for (const i of s.soil || []) W.soil[i] = 1;
     for (const i of s.wet || []) W.wet[i] = 1;
-    for (const [i, c, g] of s.crops || []) if (CROP[c]) this.crops.set(i, { c, g });
+    for (const [i, c, g, f] of s.crops || []) if (CROP[c]) this.crops.set(i, { c, g, f: !!f });
+    this.fertOn = s.fertOn !== false;
     this.seeds = s.seeds || {}; this.seedSel = s.seedSel || 'wheat';
     for (const t of s.things) {
       const [w, h] = this.dims(t.id, t.v);
@@ -694,6 +707,7 @@ class Game {
       W.clearArea(o.x, o.y, o.x + w - 1, o.y + h - 1); this.things.push(o); this.stampThing(o, true);
     }
     for (const a of s.animals) { const an = new Animal(a.sk, a.color, a.x, a.y, a); Object.assign(an, { ready: a.ready, muddy: a.muddy, gift: a.gift }); this.animals.push(an); }
+    for (const h of s.helpers || []) { const hut = this.things.find((o) => o.uid === h.home); if (!hut || !ROLES[h.role]) continue; const H = new Helper(h.role, h.home, hut.door[0] + 0.5, hut.door[1] + 0.6); H.paid = h.paid !== false; this.helpers.push(H); }
     this.player.x = s.px; this.player.y = s.py;
     // saved while indoors: wake up back inside the house
     const home = s.inside != null && this.things.find((o) => o.uid === s.inside);

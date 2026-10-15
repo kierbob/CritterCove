@@ -42,7 +42,7 @@ for pat in PLAYER:
 for p in ['Player/Tools/Iron/Iron_Tools.png', 'Player/Tools/Fishing_Rod/Wooden_Fishing_Rod.png']:
     sprites[key(os.path.join(CF, p))] = base64.b64encode(open(os.path.join(CF, p), 'rb').read()).decode()
 js = 'const SPRITES = {\n' + ',\n'.join(f'{k!r}: "data:image/png;base64,{v}"' for k, v in sprites.items()) + '\n};\n'
-ORDER = ['util.js', 'assets.js', 'furndata.js', 'world.js', 'render.js', 'player.js', 'animals.js', 'game.js', 'activities.js', 'crops.js', 'bees.js', 'interior.js', 'tutorial.js', 'ui.js', 'buildui.js', 'main.js']
+ORDER = ['util.js', 'assets.js', 'furndata.js', 'world.js', 'render.js', 'player.js', 'animals.js', 'game.js', 'activities.js', 'crops.js', 'bees.js', 'helpers.js', 'interior.js', 'tutorial.js', 'ui.js', 'buildui.js', 'main.js']
 code = '\n'.join(open(os.path.join(ROOT, 'src', f)).read() for f in ORDER)
 tpl = open(os.path.join(ROOT, 'src', 'template.html')).read()
 html = tpl.replace('/*SPRITES*/', js).replace('/*CODE*/', code)

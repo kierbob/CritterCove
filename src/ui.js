@@ -88,10 +88,11 @@ function installUI(game, app) {
   });
   // ---- tool buttons
   const toolIcon = (sel, key, cx, cy) => { const c = $(sel + ' canvas'), g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(IMG[key], cx * 16, cy * 16, 16, 16, 0, 0, 16, 16); };
-  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3);
+  toolIcon('#bShop', P.food, 3, 4); toolIcon('#bDex', P.food, 6, 1); toolIcon('#bQuest', 'Crops/Crops', 0, 9); toolIcon('#bBag', P.food, 7, 9); toolIcon('#bBuild', P.tools, 3, 0); toolIcon('#bUndo', P.res, 1, 4); toolIcon('#bMenu', 'Crops/Crops', 0, 3); toolIcon('#bMap', 'Crops/Crops', 0, 29);
   $('#bShop').onclick = () => ui.openShop('animals');
   $('#bDex').onclick = () => ui.openDex();
   $('#bQuest').onclick = () => ui.openQuests();
+  $('#bMap').onclick = () => ui.openMap();
   $('#bBag').onclick = () => ui.openShop('sell');
   for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('.modal').classList.add('hidden');
   for (const m of document.querySelectorAll('.modal')) m.addEventListener('pointerdown', (e) => { if (e.target === m) m.classList.add('hidden'); });
@@ -143,6 +144,39 @@ function installUI(game, app) {
       d.onclick = () => { if (n.thing) app.use(n.thing); else if (n.soil) app.walk(n.soil[0] + 0.5, n.soil[1] + 0.5); };
       box.appendChild(d);
     }
+  };
+  // the island map (M): terrain, your buildings, animals, helpers and you
+  ui.openMap = () => {
+    const W = game.world, S = 6, cv = $('#mapCv'); cv.width = W.W * S; cv.height = W.H * S;
+    const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    const COL = { water: '#3d9be0', pond: '#62b8ef', sand: '#ecc996', grass: '#78bf4c', grass2: '#6cb243', path: '#d9a066', soil: '#9b6343' };
+    for (let y = 0; y < W.H; y++) for (let x = 0; x < W.W; x++) {
+      const i = W.idx(x, y), t = W.ter[i];
+      g.fillStyle = W.soil[i] ? COL.soil : W.path[i] ? COL.path : t === WATER ? (W.pond[i] ? COL.pond : COL.water) : t === SAND ? COL.sand : ((x + y) % 2 ? COL.grass : COL.grass2);
+      g.fillRect(x * S, y * S, S, S);
+    }
+    // foam along the beach
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    for (let y = 0; y < W.H; y++) for (let x = 0; x < W.W; x++) if (W.ter[W.idx(x, y)] === WATER && !W.pond[W.idx(x, y)] && W.nearType(x, y, 1, (q) => q !== WATER)) g.fillRect(x * S + 1, y * S + 1, S - 2, S - 2);
+    for (const o of W.objs) {
+      if (o.kind === 'tree') { g.fillStyle = o.stump ? '#8a6a4a' : o.tree === 'Birch' ? '#e0b44a' : o.tree === 'Spruce' ? '#2f6b4a' : '#3f8f3a'; g.beginPath(); g.arc(o.x * S + S / 2, o.y * S + S / 2, o.stump ? S * 0.3 : S * 0.75, 0, 7); g.fill(); }
+      else if (o.kind === 'rock' || o.kind === 'ore') { g.fillStyle = o.kind === 'ore' ? '#b48ad8' : '#a7a7a0'; g.fillRect(o.x * S + 1, o.y * S + 1, S - 2, S - 2); }
+      else if (o.kind === 'flower') { g.fillStyle = '#ff9ec4'; g.fillRect(o.x * S + 2, o.y * S + 2, 2, 2); }
+    }
+    for (const o of game.things) {
+      const D = DEF[o.id], big = (TALL[o.id] || 0) >= 3;
+      g.fillStyle = o.shop ? '#e8606a' : o.id === 'house' ? '#f17ea5' : D.hut ? '#ffb86b' : D.home ? '#b5523a' : big ? '#8a5a3c' : D.conn ? '#6b4528' : D.feeder ? '#c9d2dc' : '#ffd1e3';
+      g.fillRect(o.x * S, (o.y - (big ? 1 : 0)) * S, o.w * S, (o.h + (big ? 1 : 0)) * S);
+      if (big) { g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(o.x * S, (o.y + o.h) * S - 2, o.w * S, 2); }
+    }
+    const dot = (x, y, r, fill, ring) => { g.beginPath(); g.arc(x * S, y * S, r, 0, 7); g.fillStyle = fill; g.fill(); if (ring) { g.lineWidth = 2; g.strokeStyle = ring; g.stroke(); } };
+    for (const a of game.animals) if (!a.wild) dot(a.x, a.y, 2.5, '#fff7e8', '#6b4528');
+    for (const h of game.helpers) if (!h.away) dot(h.x, h.y, 4, '#ffd23a', '#6b4528');
+    const P0 = game.player; dot(P0.x, P0.y, 6, '#f17ea5', '#fff');
+    $('#mapTitle').textContent = `Map of ${game.farmName}`;
+    const L = [['#f17ea5', 'You & your house'], ['#e8606a', 'Market stall'], ['#b5523a', 'Coops & barns'], ['#ffb86b', 'Helper cottages'], ['#ffd23a', 'Helpers'], ['#fff7e8', 'Your animals'], ['#9b6343', 'Fields'], ['#62b8ef', 'Ponds'], ['#3f8f3a', 'Trees'], ['#a7a7a0', 'Rocks'], ['#b48ad8', 'Gems']];
+    $('#mapLegend').innerHTML = L.map(([c, n]) => `<span><i style="background:${c}"></i>${n}</span>`).join('') + '<span>Press <b>M</b> to close</span>';
+    $('#map').classList.remove('hidden');
   };
   ui.openQuests = () => {
     const body = $('#qBody'); body.innerHTML = '';
@@ -224,6 +258,7 @@ function installUI(game, app) {
     const body = $('#shopBody'); body.innerHTML = '';
     if (shopTab === 'sell') return ui.renderSell(body);
     if (shopTab === 'seeds') return ui.renderSeeds(body);
+    if (shopTab === 'helpers') return ui.renderHelpers(body);
     const grid = el('div', 'grid'); body.appendChild(grid);
     if (shopTab === 'animals') {
       for (const sk of FARM_SPECIES) {
@@ -272,8 +307,34 @@ function installUI(game, app) {
     }
     $('#shopFoot').innerHTML = `<span>${shopTab === 'animals' ? 'New animals arrive at their home.' : 'Things you buy go into your bag. Press <b>B</b> (or Build) to place them whenever you like.'}</span><span>${coinHtml(game.coins)}</span>`;
   };
+  ui.renderHelpers = (body) => {
+    const huts = game.things.filter((o) => o.id === 'hut').length, free = game.freeHut();
+    body.appendChild(el('p', 'ds', `Helpers do chores for a daily wage, paid each morning. Each one needs their own <b>helper's cottage</b> (Buildings tab). You have ${huts} cottage${huts === 1 ? '' : 's'}${huts ? `, ${free ? 'with room for another helper' : 'all full'}` : ''}.`));
+    const grid = el('div', 'grid'); body.appendChild(grid);
+    for (const role of ROLE_LIST) {
+      const R = ROLES[role], h = game.helpers.find((q) => q.role === role), item = el('div', 'shopitem');
+      const cv = el('canvas'); cv.width = 48; cv.height = 48; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; const im = IMG[`NPCs (Premade)/${R.npc}`]; if (im) g.drawImage(im, 13, 9, 38, 38, 0, 0, 48, 48);
+      item.appendChild(cv); item.appendChild(el('div', 'nm', `${R.who} the ${R.name.toLowerCase()}`));
+      item.appendChild(el('div', 'ds', R.desc));
+      item.appendChild(el('div', 'own', h ? `Working for you · ${h.status}` : `${R.wage} coins a day`));
+      const b = el('button', 'btn' + (h ? '' : ' go'), h ? 'Say goodbye' : `Hire · ${coinHtml(R.wage)}`);
+      b.disabled = !h && (!free || game.coins < R.wage);
+      b.onclick = () => { if (h) { ask(`Let ${R.who} go?`, { yes: 'Say goodbye', no: 'Keep' }).then((ok) => { if (ok) { game.dismiss(role); ui.renderShop(); } }); return; } const r = game.hire(role); if (r) game.toast(r, 'bad'); ui.renderShop(); ui.hud(); };
+      item.appendChild(b); grid.appendChild(item);
+    }
+    $('#shopFoot').innerHTML = `<span>Wages today: ${coinHtml(game.helpers.reduce((s, h) => s + h.R.wage, 0))} a day in total</span><span>${coinHtml(game.coins)}</span>`;
+  };
   ui.renderSeeds = (body) => {
     const grid = el('div', 'grid'); body.appendChild(grid);
+    {
+      const item = el('div', 'shopitem' + (game.coins < FERT_PRICE ? ' poor' : '')), cv = el('canvas'); cv.width = 48; cv.height = 48; paintIcon(cv, 'fertilizer'); item.appendChild(cv);
+      item.appendChild(el('div', 'nm', 'Fertilizer'));
+      item.appendChild(el('div', 'ds', 'Crops grow twice as fast. Switch it on in the planting bar; each watering spreads one bag over the 3×3 splash.'));
+      item.appendChild(el('div', 'own', game.fert ? `${game.fert} bag${game.fert > 1 ? 's' : ''} in your pocket` : '&nbsp;'));
+      const buys = el('div', 'buys');
+      for (const n of [1, 5]) { const b = el('button', 'btn go', n === 1 ? coinHtml(FERT_PRICE) : '×5'); b.disabled = game.coins < FERT_PRICE * n; b.onclick = () => { const r = game.buyFert(n); if (r) game.toast(r, 'bad'); ui.renderShop(); ui.hud(); ui.seedBar(); }; buys.appendChild(b); }
+      item.appendChild(buys); grid.appendChild(item);
+    }
     for (const C of CROPS) {
       const locked = game.day < C.day, item = el('div', 'shopitem' + (game.coins < C.seed || locked ? ' poor' : ''));
       const cv = el('canvas'); cv.width = 48; cv.height = 48; item.appendChild(cv); paintIcon(cv, C.id);
@@ -293,15 +354,23 @@ function installUI(game, app) {
   // the seed you'll plant next, with a picker
   ui.seedBar = () => {
     const bar = $('#seedBar'), pick = $('#seedPick'), have = Object.keys(game.seeds).filter((k) => game.seeds[k] > 0);
-    const show = game.started !== false && have.length && !game.inside && ui.nearSoil;
+    const show = game.started !== false && (have.length || game.fert > 0) && !game.inside && ui.nearSoil;
     bar.classList.toggle('hidden', !show); if (!show) { pick.classList.add('hidden'); return; }
-    if (!(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
-    const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length;
+    if (have.length && !(game.seeds[game.seedSel] > 0)) game.seedSel = have[0];
+    const key = game.seedSel + ':' + game.seeds[game.seedSel] + ':' + have.length + ':' + game.fert + ':' + game.fertOn;
     if (bar.dataset.k === key) return; bar.dataset.k = key;
     bar.innerHTML = '';
-    const cv = el('canvas'); cv.width = 32; cv.height = 32; paintIcon(cv, game.seedSel);
-    bar.appendChild(el('span', '', 'Planting')); bar.appendChild(cv); bar.appendChild(el('b', '', `${CROP[game.seedSel].name} ×${game.seeds[game.seedSel]}`));
-    if (have.length > 1) { const b = el('button', 'btn', 'Change'); b.onclick = () => { pick.classList.toggle('hidden'); ui.seedPicker(); }; bar.appendChild(b); }
+    if (have.length) {
+      const cv = el('canvas'); cv.width = 32; cv.height = 32; paintIcon(cv, game.seedSel);
+      bar.appendChild(el('span', '', 'Planting')); bar.appendChild(cv); bar.appendChild(el('b', '', `${CROP[game.seedSel].name} ×${game.seeds[game.seedSel]}`));
+      if (have.length > 1) { const b = el('button', 'btn', 'Change'); b.onclick = () => { pick.classList.toggle('hidden'); ui.seedPicker(); }; bar.appendChild(b); }
+    }
+    if (game.fert > 0) {
+      const f = el('button', 'btn' + (game.fertOn ? ' go' : ''), `🌿 Fertilizer ×${game.fert}: ${game.fertOn ? 'on' : 'off'}`);
+      f.title = 'When on, watering also spreads fertilizer: those crops grow twice as fast';
+      f.onclick = () => { game.fertOn = !game.fertOn; bar.dataset.k = ''; ui.seedBar(); };
+      bar.appendChild(f);
+    }
     if (!pick.classList.contains('hidden')) ui.seedPicker();
   };
   ui.seedPicker = () => {
@@ -367,6 +436,8 @@ function installUI(game, app) {
     }
     body.appendChild(el('p', '', r.produce ? `${r.produce} of your animals ${r.produce > 1 ? 'are' : 'is'} ready to give you something today.` : 'Feed, water and pat your animals so they have something for you tomorrow.'));
     if (r.unhappy.length) body.appendChild(el('p', '', `${r.unhappy.slice(0, 3).map((a) => a.name).join(', ')} ${r.unhappy.length > 1 ? 'were' : 'was'} a bit sad yesterday.`));
+    if (r.wages) body.appendChild(el('p', '', `You paid your helpers ${r.wages} coins in wages.`));
+    if (r.unpaid) body.appendChild(el('p', '', `There wasn't enough money to pay ${r.unpaid.join(' and ')}, so they're staying home today.`));
     if (r.full) body.appendChild(el('p', '', `Some of your ${[...new Set(r.full)].map((sk) => SPECIES[sk].plural.toLowerCase()).join(' and ')} wanted a baby, but there's no room at home. Build another ${r.full.some((sk) => SPECIES[sk].home === 'barn') ? 'barn' : 'coop'}!`));
     if (game.weather.raining) body.appendChild(el('p', '', 'It looks like rain later. The troughs will fill themselves, and the rain waters your crops!'));
     else if (game.weather.kind === 'windy') body.appendChild(el('p', '', 'A breezy day today. Hold on to your hat!'));
