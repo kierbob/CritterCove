@@ -65,11 +65,12 @@ class Player extends Person {
       if (A.update) A.update(dt, A);
       if (A.dur && A.t >= A.dur) { this.act = null; if (A.done) A.done(); }
       // walking cancels whatever you were doing
-      if ((input.left || input.right || input.up || input.down) && A.cancelable !== false) { this.act = null; if (A.cancel) A.cancel(); }
+      if ((input.left || input.right || input.up || input.down || input.ax || input.ay) && A.cancelable !== false) { this.act = null; if (A.cancel) A.cancel(); }
       else return;
     }
     let dx = 0, dy = 0;
     if (input.left) dx -= 1; if (input.right) dx += 1; if (input.up) dy -= 1; if (input.down) dy += 1;
+    if (input.ax || input.ay) { dx = input.ax; dy = input.ay; }   // the touch stick is analogue
     if (dx || dy) this.path = null;
     if (!dx && !dy && this.path && this.path.length) {
       const [tx, ty] = this.path[0]; const ex = tx + 0.5 - this.x, ey = ty + 0.6 - this.y, d = Math.hypot(ex, ey);

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Critter Cove</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@600;800&display=swap">
@@ -234,6 +234,19 @@ body.building #hint, body.building #card { display: none !important; }
   #card { bottom: calc(80px + env(safe-area-inset-bottom)); width: calc(100vw - 20px); }
   .creator { grid-template-columns: 1fr; justify-items: center; }
   }
+
+/* touch screens: a thumb stick for walking (and panning in build mode) */
+#stick { position: fixed; right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 132px; height: 132px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,244,220,.55), rgba(255,244,220,.32) 70%); border: 3px solid rgba(107,69,40,.75); box-shadow: 0 4px 0 rgba(74,46,28,.3);
+  z-index: 8; touch-action: none; display: none; }
+body.touch.playing #stick { display: block; }
+#stick .knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: var(--paper2); border: 3px solid var(--line); box-shadow: 0 3px 0 var(--line); pointer-events: none; transition: transform .06s; }
+#stick.on .knob { transition: none; background: #fff; }
+body.touch.building #stick { bottom: calc(150px + env(safe-area-inset-bottom)); }
+body.touch #tut { bottom: calc(170px + env(safe-area-inset-bottom)); }
+body.touch.building #tut { bottom: calc(300px + env(safe-area-inset-bottom)); }
+body.touch #hint, body.touch #buildTip { display: none !important; }
+body.touch #toasts { pointer-events: none; }
 </style>
 </head>
 <body>
@@ -272,6 +285,7 @@ body.building #hint, body.building #card { display: none !important; }
 <div id="qDone" class="panel hidden"></div>
 <div id="map" class="modal hidden"><div class="sheet panel"><button class="x" data-close>×</button><h2 class="px" id="mapTitle">Map</h2><div class="mapwrap"><canvas id="mapCv"></canvas></div><div class="maplegend" id="mapLegend"></div></div></div>
 <div id="needs"></div>
+<div id="stick"><div class="knob"></div></div>
 <div id="pause" class="modal hidden"><div class="sheet panel">
   <div id="pMain" class="pview"><h2 class="px">Paused</h2><div class="tag" id="pTag"></div>
     <button class="btn go px big" id="pResume">Resume</button><button class="btn px big" id="pSettings">Settings</button><button class="btn px big" id="pQuit">Save &amp; main menu</button></div>

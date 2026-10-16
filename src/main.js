@@ -5,7 +5,11 @@
   window.addEventListener('resize', () => R.resize());
   const audio = makeAudio();
   let build = null, tut = null, game = null, ui = null, last = performance.now(), time = 0, sel = null, hover = null, mouse = null;
-  const input = { left: false, right: false, up: false, down: false };
+  const input = { left: false, right: false, up: false, down: false, ax: 0, ay: 0 };
+  // little things you pick by hand (flowers, mushrooms, berries) only count when you're next to them:
+  // tap one further away and you just walk there
+  const PICKABLE = ['flower', 'mushroom', 'berry'];
+  const tooFar = (ob) => PICKABLE.includes(ob.kind) && dist(ob.x + 0.5, ob.y + 0.6, game.player.x, game.player.y) > 2.6;
   const app = {
     select(a) { sel = a; ui.card(a); },
     use(o) { const D = DEF[o.id], tx = o.door ? o.door[0] : o.x + Math.floor(o.w / 2), ty = o.door ? o.door[1] : o.y + o.h; walkTo(tx + 0.5, ty + 0.5, D.door ? 0.5 : 1.6, () => game.useThing(o), o); },
@@ -42,6 +46,7 @@
     $('#pBack').onclick = () => { $('#pSet').classList.add('hidden'); $('#pMain').classList.remove('hidden'); };
     addEventListener('pagehide', () => game && game.started && game.save());
     for (const id of ['#hud', '#tools', '#hint']) $(id).classList.remove('hidden');
+    document.body.classList.add('playing');
     ui.undoState();
     R.cam.x = game.player.x; R.cam.y = game.player.y; R.cam.z = settings.zoom || (innerWidth < 700 ? 2.5 : 3); outZoom = R.cam.z; if (game.inside) roomCam(true);
     ui.hud(); hint();
@@ -152,7 +157,7 @@
     const so = soilAt(wx, wy);
     if (so) { walkTo(so[0] + 0.5, so[1] + 0.5, 1.2, () => game.useSoil(so[0], so[1]), true); return; }
     // scenery you can gather from
-    const ob = sceneryAt(wx, wy);
+    let ob = sceneryAt(wx, wy); if (ob && tooFar(ob)) ob = null;
     if (ob) { walkTo(ob.x + 0.5, ob.y + 0.5, 1.4, () => game.gather(ob), true); return; }
     // water: walk to the shore and cast a line
     if (game.world.isWater(tx, ty)) { goFish(tx, ty); return; }
@@ -222,6 +227,27 @@
     else game.toast('You can\'t get there from here.', 'bad');
   }
 
+  // ------------------------------------------------- touch joystick
+  // phones and tablets get a thumb stick: walk around, or pan the camera in build mode
+  const stick = $('#stick'), knob = stick.querySelector('.knob');
+  let stickId = null;
+  const isTouch = () => document.body.classList.contains('touch');
+  addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' && !isTouch()) { document.body.classList.add('touch'); if (ui) hint(); } }, { capture: true });
+  if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) document.body.classList.add('touch');
+  const stickMove = (e) => {
+    const r = stick.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, R0 = r.width / 2;
+    let dx = (e.clientX - cx) / R0, dy = (e.clientY - cy) / R0; const l = Math.hypot(dx, dy);
+    if (l > 1) { dx /= l; dy /= l; }
+    const dead = l < 0.18;
+    input.ax = dead ? 0 : dx; input.ay = dead ? 0 : dy;
+    input.left = !dead && dx < -0.4; input.right = !dead && dx > 0.4; input.up = !dead && dy < -0.4; input.down = !dead && dy > 0.4;
+    knob.style.transform = `translate(${dx * R0 * 0.55}px, ${dy * R0 * 0.55}px)`;
+  };
+  const stickEnd = () => { stickId = null; input.ax = input.ay = 0; input.left = input.right = input.up = input.down = false; knob.style.transform = ''; stick.classList.remove('on'); };
+  stick.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); audio.unlock(); stickId = e.pointerId; stick.setPointerCapture(e.pointerId); stick.classList.add('on'); stickMove(e); });
+  stick.addEventListener('pointermove', (e) => { if (e.pointerId === stickId) stickMove(e); });
+  stick.addEventListener('pointerup', stickEnd); stick.addEventListener('pointercancel', stickEnd); stick.addEventListener('lostpointercapture', stickEnd);
+
   // ----------------------------------------------------------------- loop
   function frame(now) {
     const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; time += dt;
@@ -238,7 +264,7 @@
         // step out through the door at the bottom of the room
         if (!build.on && input.down && Math.floor(P0.x) === r.door[0] && P0.y > r.H - 0.45) leaveHouse();
       } else game.player.update(dt, game, build.on ? {} : input);
-      if (build.on && !game.inside) { const sp = dt * 14 / R.cam.z * 3; R.cam.x += ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * sp; R.cam.y += ((input.down ? 1 : 0) - (input.up ? 1 : 0)) * sp; }
+      if (build.on && !game.inside) { const sp = dt * 14 / R.cam.z * 3, sx = input.ax || ((input.right ? 1 : 0) - (input.left ? 1 : 0)), sy = input.ay || ((input.down ? 1 : 0) - (input.up ? 1 : 0)); R.cam.x += sx * sp; R.cam.y += sy * sp; }
       game.update(dt);
       if (tut) tut.update();
       if (settings.birds && !game.isNight() && game.weather.rain < 0.3 && Math.random() < dt * 0.12) audio.play('chirp');
@@ -431,7 +457,7 @@
     const o = game.thingVisualAt(wx, wy);
     if (!o) {
       const so = soilAt(wx, wy); if (so) return { soil: so, label: game.soilLabel(so[0], so[1]) };
-      const ob = sceneryAt(wx, wy); if (ob) return { ob, label: game.gatherLabel(ob) };
+      const ob = sceneryAt(wx, wy); if (ob && !tooFar(ob)) return { ob, label: game.gatherLabel(ob) };
       const tx = Math.floor(wx), ty = Math.floor(wy);
       if (game.world.isWater(tx, ty)) { const spot = game.fishSpots.find((q) => dist(q.x, q.y, tx, ty) < 2.2); return { label: spot ? 'Fishing spot! Cast here' : `Go fishing (${game.world.isPond(tx, ty) ? 'pond' : 'sea'})` }; }
       return null;
